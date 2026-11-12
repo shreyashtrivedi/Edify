@@ -30,7 +30,7 @@ const envSchema = z
 
     // AI (Google Gemini)
     GEMINI_API_KEY: optionalString,
-    GEMINI_MODEL: z.string().default('gemini-2.5-flash'),
+    GEMINI_MODEL: z.string().default('gemini-3.5-flash-lite'),
   })
   .refine((data) => data.NODE_ENV !== 'production' || data.MONGO_URI, {
     message: 'MONGO_URI is required in production',
