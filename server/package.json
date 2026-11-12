@@ -1,0 +1,35 @@
+{
+  "name": "edify-server",
+  "version": "1.0.0",
+  "description": "Edify (Text-to-Learn) REST API — Express + MongoDB + Gemini",
+  "private": true,
+  "type": "module",
+  "main": "server.js",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "node --watch server.js",
+    "start": "node server.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "eslint ."
+  },
+  "dependencies": {
+    "cors": "^2.8.6",
+    "dotenv": "^18.0.10",
+    "express": "^5.3.0",
+    "helmet": "^8.3.0",
+    "mongoose": "^9.12.1",
+    "morgan": "^1.12.1",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.14.0",
+    "globals": "^17.14.0",
+    "mongodb-memory-server": "^11.3.0",
+    "supertest": "^7.3.2",
+    "vitest": "^5.1.0"
+  }
+}
