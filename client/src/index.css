@@ -1,0 +1,71 @@
+/*
+ * Global styles + design tokens.
+ *
+ * Colours are CSS variables, mapped to Tailwind utilities via @theme
+ * (e.g. bg-canvas, text-muted, border-line, bg-brand). Dark mode only
+ * swaps the variable values under the .dark class, so components never
+ * need separate dark: classes for their base colours.
+ */
+@import 'tailwindcss';
+
+/* `dark:` variant activates when <html> has the .dark class (toggled in JS). */
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme inline {
+  --font-sans: 'Inter Variable', ui-sans-serif, system-ui, sans-serif;
+  --font-display: 'Fraunces Variable', ui-serif, Georgia, serif;
+  --font-mono: 'JetBrains Mono Variable', ui-monospace, SFMono-Regular, monospace;
+
+  --color-canvas: var(--canvas); /* page background */
+  --color-surface: var(--surface); /* cards, sidebar */
+  --color-subtle: var(--subtle); /* hover fills, inputs */
+  --color-ink: var(--ink); /* primary text */
+  --color-muted: var(--muted); /* secondary text */
+  --color-line: var(--line); /* borders */
+  --color-brand: var(--brand); /* primary accent */
+  --color-brand-strong: var(--brand-strong); /* accent hover */
+  --color-brand-soft: var(--brand-soft); /* tinted accent background */
+  --color-on-brand: var(--on-brand); /* text on brand background */
+}
+
+:root {
+  --canvas: #f8f7f4;
+  --surface: #ffffff;
+  --subtle: #f1efea;
+  --ink: #1c1b19;
+  --muted: #6b675f;
+  --line: #e5e2db;
+  --brand: #4f46e5;
+  --brand-strong: #4338ca;
+  --brand-soft: #eef0ff;
+  --on-brand: #ffffff;
+  color-scheme: light;
+}
+
+.dark {
+  --canvas: #111113;
+  --surface: #18181b;
+  --subtle: #232327;
+  --ink: #ececec;
+  --muted: #a1a1aa;
+  --line: #2e2e33;
+  --brand: #7c7cf5;
+  --brand-strong: #9b9bff;
+  --brand-soft: #23233f;
+  --on-brand: #0e0e1a;
+  color-scheme: dark;
+}
+
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+  }
+
+  body {
+    @apply bg-canvas text-ink font-sans;
+  }
+
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-brand;
+  }
+}
