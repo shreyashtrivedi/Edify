@@ -31,6 +31,7 @@ cp server/.env.example server/.env          # add GEMINI_API_KEY, YOUTUBE_API_KE
 cp client/.env.example client/.env.local    # add the VITE_AUTH0_* values
 npm run check:ai --prefix server            # verifies the Gemini key + model work
 npm run check:youtube --prefix server       # verifies the YouTube key
+npm run check:tts --prefix server           # records a test Hinglish sentence (Gemini TTS)
 
 # 3. Start API (http://localhost:5000) and app (http://localhost:5173) together
 npm run dev

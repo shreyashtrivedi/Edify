@@ -22,12 +22,13 @@ explanations, code, a video and a quiz.
    │   ├─ /api/courses                     generate outline / list / get / delete
    │   ├─ /api/lessons                     get / generate content on first open
    │   │     └─ course|lesson.service ──► gemini.service ──► Google Gemini
-   │   │                                  └► youtube.service ──► YouTube Data API (cached)
+   │   │                                  ├► youtube.service ──► YouTube Data API (cached)
+   │   │                                  └► narration.service ─► Gemini text + Gemini TTS → MP3
    │   └─ /api/users/me                    profile sync + stats
    └─ errorHandler                         one JSON error shape for everything
    ▼
  MongoDB (Atlas in prod, in-memory in local dev/tests)
-   courses · modules · lessons · users · videocaches
+   courses · modules · lessons · lessonaudios · users · videocaches
 ```
 
 ## 2. Repository layout
@@ -61,8 +62,8 @@ Edify/
 │   ├── models/                Mongoose schemas
 │   ├── schemas/               zod schemas (requests + AI output)
 │   ├── middlewares/           auth (JWT check), validation, rate limiting, errors
-│   ├── utils/                 ApiError
-│   ├── scripts/               check-gemini.js, check-youtube.js (verify API keys)
+│   ├── utils/                 ApiError, audio (PCM → MP3)
+│   ├── scripts/               check-gemini.js, check-youtube.js, check-tts.js (verify API keys)
 │   └── tests/                 vitest + supertest + in-memory MongoDB
 ├── docs/                      this file
 └── .github/workflows/ci.yml   lint + test + build on every push/PR
@@ -191,6 +192,36 @@ each lesson is generated once, then served from MongoDB forever.
 Measured with the real API (`gemini-3.5-flash-lite`): outline ≈ 3 s / ~900 tokens,
 lesson ≈ 6–7 s / ~2,600 tokens, both valid on the first attempt.
 
+### Hinglish audio narration (`narration.service.js`, `tts.service.js`)
+
+A **Listen in Hinglish** card on every lesson. Nothing is generated until the learner clicks it.
+
+```
+POST /api/lessons/:id/narration
+  1. Script   text model: lesson (headings, paragraphs, lists; no code/quiz) → ~150-220 word
+              spoken explanation in Hinglish, as JSON { script }            (~2 s)
+  2. Speech   TTS model (gemini-3.8-flash-lite-tts, voice "Kore"):
+              script → raw PCM, 16-bit, 24 kHz, mono                         (~10 s for ~70 s of audio)
+  3. Encode   PCM → MP3 at 48 kbps with lamejs (pure JS)                     (~0.5 s, 2.7 MB → ~350 KB/min)
+  4. Store    MP3 in `lessonaudios` (own collection), { transcript, durationSeconds } on the lesson
+GET /api/lessons/:id/narration/audio  → the MP3 (Cache-Control: private, 1 day)
+```
+
+Design decisions:
+- **Devanagari for Hindi, Latin for English terms** ("आज हम JavaScript में promises सीखेंगे"). TTS pronounces
+  Hindi most naturally from its own script, and technical terms stay English, the way developers say
+  them. The first prompt version produced Roman Hinglish ("Aaj hum seekhenge"); adding a correct/wrong
+  example pair to the prompt fixed it (~70% Devanagari letters).
+- **Generated once, stored forever:** the free TTS quota is small and a narration costs 2 AI calls, so
+  repeat plays are pure database reads. Regenerating a lesson deletes its narration (it would be wrong).
+- **Audio in its own collection:** opening a lesson never downloads its MP3; only pressing play does.
+- **Auth for audio:** an `<audio src>` request can't carry the `Authorization` header, so the client
+  fetches the MP3 with axios (`responseType: 'blob'`) and plays it from a `blob:` URL (revoked on unmount).
+- **API version gotcha:** SDK v3 calls the stable `v1` API by default, which rejects `speechConfig`
+  ("Unknown name speechConfig"). The TTS call overrides `httpOptions.apiVersion = 'v1beta'` for that request only.
+- **Style direction:** the TTS text starts with "Read the following aloud like a warm, friendly Indian
+  teacher…". Verified by transcribing the output that this steers the voice and is *not* read aloud.
+
 ### Real videos instead of invented links (`youtube.service.js`)
 
 Language models make up YouTube links that look real but don't exist. So the AI never writes a URL:
@@ -284,8 +315,9 @@ Course 1 ──< Module 1 ──< Lesson          User (one per Auth0 account; C
 | **Course** | `title`, `description`, `creator` (Auth0 `sub`), `modules[]` → Module, `tags[]`, `prompt`, `level`, timestamps |
 | **Module** | `title`, `description`, `course` → Course, `order`, `lessons[]` → Lesson |
 | **User** | `auth0Id` (unique, = token `sub`), `name`, `email`, `picture`, `lastLoginAt` |
+| **LessonAudio** | `lesson` (unique), `course` (cascade delete), `data` (MP3 Buffer), `mimeType` |
 | **VideoCache** | `query` (unique, normalised), `video` (or `null` = nothing suitable), `expiresAt` (TTL index) |
-| **Lesson** | `title`, `module` → Module, `course` → Course, `order`, `objectives[]`, `keyTopics[]`, `content[]` (flexible blocks), `resources[]`, `isEnriched` |
+| **Lesson** | `title`, `module` → Module, `course` → Course, `order`, `objectives[]`, `keyTopics[]`, `content[]` (flexible blocks), `resources[]`, `isEnriched`, `narration?` `{ transcript, durationSeconds, voice, generatedAt }` |
 
 Design notes:
 - **References both ways** (`Course.modules[]` and `Module.course`): the array keeps display order
@@ -312,6 +344,8 @@ Design notes:
 | DELETE | `/api/courses/:id` | cascades to modules + lessons | `204` |
 | GET | `/api/lessons/:id` | one lesson (empty `content` until generated) | `200 { lesson }` |
 | POST | `/api/lessons/:id/generate` | `{ force? }`, rate-limited; returns stored content if already generated | `200 { lesson }` |
+| POST | `/api/lessons/:id/narration` | records the Hinglish narration once (rate-limited); `409` if the lesson has no content yet | `200 { narration }` |
+| GET | `/api/lessons/:id/narration/audio` | the MP3 | `200 audio/mpeg` |
 | PUT | `/api/users/me` | `{ name?, email?, picture? }`: create/update profile after login | `200 { user }` (with `stats`) |
 | GET | `/api/users/me` | profile + `stats: { courses, lessonsGenerated }` | `200 { user }` |
 
@@ -412,6 +446,7 @@ with a readable message, instead of failing on the first request.
 | `MONGO_URI` | server | Atlas connection string (empty in dev → in-memory MongoDB) |
 | `CLIENT_URL` | server | allowed CORS origin(s), comma-separated |
 | `GEMINI_API_KEY`, `GEMINI_MODEL` | server | AI access; model defaults to `gemini-3.5-flash-lite` |
+| `GEMINI_TTS_MODEL`, `GEMINI_TTS_VOICE` | server | narration voice (defaults `gemini-3.8-flash-lite-tts`, `Kore`) |
 | `AI_MOCK` | server | `true` = sample content instead of Gemini (dev only, rejected in production) |
 | `YOUTUBE_API_KEY` | server | YouTube Data API v3 (optional; without it lessons link to a YouTube search) |
 | `AUTH0_DOMAIN`, `AUTH0_AUDIENCE` | server | which tenant issues tokens and which API they must be for (required in production) |
@@ -424,7 +459,8 @@ Secrets live **only** on the server. Anything prefixed `VITE_` ends up in public
 
 - **Tests:** vitest + supertest against an in-memory MongoDB; the Gemini SDK is mocked, so tests
   are fast, free and deterministic. Covered: authentication (missing/forged/expired/wrong-audience
-  tokens), data isolation between users, YouTube video selection/caching/quota errors (fake YouTube API
+  tokens), data isolation between users, narration (script + TTS call shape, MP3 output, record-once,
+  409 before content exists, cleanup on regenerate/delete), YouTube video selection/caching/quota errors (fake YouTube API
   via a stubbed `fetch`), validation, persistence, cascade delete, retry on
   invalid AI output, error mapping, JSON parsing, lesson caching, in-flight dedupe, block
   normalisation, and mock data staying in sync with the schemas.
@@ -441,6 +477,6 @@ Secrets live **only** on the server. Anything prefixed `VITE_` ends up in public
 - [x] Phase 4: Auth0 login + per-user courses, user profiles, per-user rate limits
 - [x] Phase 5: YouTube videos: real embeddable videos picked by the server, cached in MongoDB, lite embed
 - [x] Phase 6: PDF export: lesson PDF + full-course PDF (cover, clickable contents, bookmarks, answer key)
-- [ ] Phase 7: Hinglish TTS
+- [x] Phase 7: Hinglish audio narration (Gemini script + TTS, MP3, stored once per lesson)
 - [ ] Phase 8: Extras (progress tracking, dark mode, "ask a doubt" tutor, share links)
 - [ ] Phase 9: Deploy (Render + Vercel), README, demo video

@@ -46,6 +46,11 @@ export const lessonsApi = {
   get: (id, options) => api.get(`/lessons/${id}`, options).then((res) => res.data.lesson),
   generate: (id, { force = false } = {}, options) =>
     api.post(`/lessons/${id}/generate`, { force }, options).then((res) => res.data.lesson),
+  /** Records the Hinglish narration (once; later calls return the stored one). */
+  narrate: (id) => api.post(`/lessons/${id}/narration`).then((res) => res.data.narration),
+  /** The narration MP3 as a Blob. Fetched through axios so the auth token is sent. */
+  narrationAudio: (id) =>
+    api.get(`/lessons/${id}/narration/audio`, { responseType: 'blob' }).then((res) => res.data),
 };
 
 export const usersApi = {
