@@ -14,7 +14,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "eslint .",
-    "check:ai": "node scripts/check-gemini.js"
+    "check:ai": "node scripts/check-gemini.js",
+    "check:youtube": "node scripts/check-youtube.js"
   },
   "dependencies": {
     "@google/genai": "^3.2.0",

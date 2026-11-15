@@ -22,11 +22,12 @@ explanations, code, a video and a quiz.
    │   ├─ /api/courses                     generate outline / list / get / delete
    │   ├─ /api/lessons                     get / generate content on first open
    │   │     └─ course|lesson.service ──► gemini.service ──► Google Gemini
+   │   │                                  └► youtube.service ──► YouTube Data API (cached)
    │   └─ /api/users/me                    profile sync + stats
    └─ errorHandler                         one JSON error shape for everything
    ▼
  MongoDB (Atlas in prod, in-memory in local dev/tests)
-   courses · modules · lessons · users
+   courses · modules · lessons · users · videocaches
 ```
 
 ## 2. Repository layout
@@ -60,7 +61,7 @@ Edify/
 │   ├── schemas/               zod schemas (requests + AI output)
 │   ├── middlewares/           auth (JWT check), validation, rate limiting, errors
 │   ├── utils/                 ApiError
-│   ├── scripts/               check-gemini.js (verify AI setup)
+│   ├── scripts/               check-gemini.js, check-youtube.js (verify API keys)
 │   └── tests/                 vitest + supertest + in-memory MongoDB
 ├── docs/                      this file
 └── .github/workflows/ci.yml   lint + test + build on every push/PR
@@ -189,6 +190,29 @@ each lesson is generated once, then served from MongoDB forever.
 Measured with the real API (`gemini-3.5-flash-lite`): outline ≈ 3 s / ~900 tokens,
 lesson ≈ 6–7 s / ~2,600 tokens, both valid on the first attempt.
 
+### Real videos instead of invented links (`youtube.service.js`)
+
+Language models make up YouTube links that look real but don't exist. So the AI never writes a URL:
+it writes a **search query** (`{ "type": "video", "query": "python lists for beginners tutorial" }`),
+and before the lesson is saved the server resolves it with the official **YouTube Data API v3**:
+
+1. **Cache first.** The query is normalised (`trim`, lowercase, single spaces) and looked up in the
+   `videocaches` collection. A hit costs nothing.
+2. **`search.list`** (100 quota units): top 5 results with `type=video`, `videoEmbeddable=true`
+   (must play inside our page), `safeSearch=strict`.
+3. **`videos.list`** (1 unit): durations (ISO 8601, e.g. `PT13M5S`) and view counts for those 5.
+4. **Pick:** keep "lesson-sized" videos (3 to 45 min: no Shorts, no 4-hour livestreams); among the 3
+   most relevant of those, take the most viewed. Relevance first, popularity as a quality signal.
+5. **Save** `video: { videoId, title, channel, thumbnail, durationSeconds }` on the block and in the cache
+   (TTL index: found → 30 days, "nothing suitable" → 1 day, so dead videos eventually get replaced).
+
+**Why caching matters:** the free quota is 10,000 units/day, and one search costs 101, so only about
+**99 uncached searches a day**. Similar lessons produce similar queries, so the cache stretches that a long way.
+
+**Never blocks a lesson:** no key, quota exhausted or network error → the error is logged, *not*
+cached (tomorrow it can work again), and the block keeps only its `query`, which the UI shows as a
+"Find a video on YouTube" search link.
+
 ### Lesson content blocks
 
 | `type` | Fields | Rendered by |
@@ -198,7 +222,7 @@ lesson ≈ 6–7 s / ~2,600 tokens, both valid on the first attempt.
 | `list` | `items[]`, `ordered` | `ListBlock` |
 | `code` | `language`, `text` (only when the topic is technical) | `CodeBlock` (Prism highlighting + copy) |
 | `callout` | `variant` (tip / note / warning), `text` | `CalloutBlock` |
-| `video` | `query`: a YouTube **search query**, never a URL | `VideoBlock` |
+| `video` | `query`: a YouTube **search query** from the AI, never a URL; `video`: added by the server (see above) | `VideoBlock` (lite embed, or search link fallback) |
 | `mcq` | `question`, `options[4]`, `answer` (0-based), `explanation` | `MCQBlock` (instant feedback + score) |
 
 **Forgiving validation (`schemas/lesson.schemas.js`).** Each block type has its own small zod
@@ -259,6 +283,7 @@ Course 1 ──< Module 1 ──< Lesson          User (one per Auth0 account; C
 | **Course** | `title`, `description`, `creator` (Auth0 `sub`), `modules[]` → Module, `tags[]`, `prompt`, `level`, timestamps |
 | **Module** | `title`, `description`, `course` → Course, `order`, `lessons[]` → Lesson |
 | **User** | `auth0Id` (unique, = token `sub`), `name`, `email`, `picture`, `lastLoginAt` |
+| **VideoCache** | `query` (unique, normalised), `video` (or `null` = nothing suitable), `expiresAt` (TTL index) |
 | **Lesson** | `title`, `module` → Module, `course` → Course, `order`, `objectives[]`, `keyTopics[]`, `content[]` (flexible blocks), `resources[]`, `isEnriched` |
 
 Design notes:
@@ -335,6 +360,10 @@ generating, `markLessonEnriched()` updates that shared copy and the outline's ch
 
 ### Security in rendering
 
+**Videos** use a "lite embed": only the thumbnail is shown until the learner clicks play, then a
+`youtube-nocookie.com` iframe loads. This saves ~1 MB of YouTube scripts per lesson and avoids tracking
+cookies until playback. The `videoId` must match `/^[\w-]{11}$/` before it is put in the iframe URL.
+
 AI text is **never** inserted as HTML. `InlineText` parses `**bold**`, `*italic*` and `` `code` ``
 into React elements, so injected `<script>` or HTML in AI output is displayed as plain text.
 
@@ -349,6 +378,7 @@ with a readable message, instead of failing on the first request.
 | `CLIENT_URL` | server | allowed CORS origin(s), comma-separated |
 | `GEMINI_API_KEY`, `GEMINI_MODEL` | server | AI access; model defaults to `gemini-3.5-flash-lite` |
 | `AI_MOCK` | server | `true` = sample content instead of Gemini (dev only, rejected in production) |
+| `YOUTUBE_API_KEY` | server | YouTube Data API v3 (optional; without it lessons link to a YouTube search) |
 | `AUTH0_DOMAIN`, `AUTH0_AUDIENCE` | server | which tenant issues tokens and which API they must be for (required in production) |
 | `VITE_AUTH0_DOMAIN`, `VITE_AUTH0_CLIENT_ID`, `VITE_AUTH0_AUDIENCE` | client | Auth0 login settings (public by design: SPAs have no client secret) |
 | `VITE_API_URL` | client | backend base URL (public, baked into the bundle) |
@@ -359,7 +389,8 @@ Secrets live **only** on the server. Anything prefixed `VITE_` ends up in public
 
 - **Tests:** vitest + supertest against an in-memory MongoDB; the Gemini SDK is mocked, so tests
   are fast, free and deterministic. Covered: authentication (missing/forged/expired/wrong-audience
-  tokens), data isolation between users, validation, persistence, cascade delete, retry on
+  tokens), data isolation between users, YouTube video selection/caching/quota errors (fake YouTube API
+  via a stubbed `fetch`), validation, persistence, cascade delete, retry on
   invalid AI output, error mapping, JSON parsing, lesson caching, in-flight dedupe, block
   normalisation, and mock data staying in sync with the schemas.
 - **Lint:** ESLint (server), oxlint (client).
@@ -373,6 +404,7 @@ Secrets live **only** on the server. Anything prefixed `VITE_` ends up in public
 - [x] Phase 2: Frontend: prompt form, course page, lesson renderer + blocks, loading/error states
 - [x] Phase 3: On-demand lesson generation (objectives, blocks, 4–5 MCQs, readings)
 - [x] Phase 4: Auth0 login + per-user courses, user profiles, per-user rate limits
-- [ ] Phase 5: YouTube videos (cached) · Phase 6: PDF export · Phase 7: Hinglish TTS
+- [x] Phase 5: YouTube videos: real embeddable videos picked by the server, cached in MongoDB, lite embed
+- [ ] Phase 6: PDF export · Phase 7: Hinglish TTS
 - [ ] Phase 8: Extras (progress tracking, dark mode, "ask a doubt" tutor, share links)
 - [ ] Phase 9: Deploy (Render + Vercel), README, demo video

@@ -27,9 +27,10 @@ Requirements: **Node.js 22+**.
 npm run install:all
 
 # 2. Configure the API and the app
-cp server/.env.example server/.env          # add GEMINI_API_KEY, AUTH0_DOMAIN, AUTH0_AUDIENCE
+cp server/.env.example server/.env          # add GEMINI_API_KEY, YOUTUBE_API_KEY, AUTH0_DOMAIN, AUTH0_AUDIENCE
 cp client/.env.example client/.env.local    # add the VITE_AUTH0_* values
 npm run check:ai --prefix server            # verifies the Gemini key + model work
+npm run check:youtube --prefix server       # verifies the YouTube key
 
 # 3. Start API (http://localhost:5000) and app (http://localhost:5173) together
 npm run dev

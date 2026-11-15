@@ -1,8 +1,14 @@
 import request from 'supertest';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { courseOutline } from './fixtures/courseOutline.js';
 import { TEST_USER, authHeader, createTestApp } from './helpers/auth.js';
 import { useTestDatabase } from './helpers/db.js';
+import { quotaExceededFetch, youtubeFetch } from './helpers/youtube.js';
+
+// vi.hoisted runs before every import, so config/env.js sees the key when it loads.
+vi.hoisted(() => {
+  process.env.YOUTUBE_API_KEY = 'test-youtube-key';
+});
 
 const { generateContent } = vi.hoisted(() => ({ generateContent: vi.fn() }));
 vi.mock('@google/genai', () => ({
@@ -32,6 +38,11 @@ const generate = (lessonId, body = {}) =>
 
 beforeEach(() => {
   generateContent.mockReset();
+  vi.stubGlobal('fetch', youtubeFetch()); // fake YouTube API: no network, no quota
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
 });
 
 describe('POST /api/lessons/:id/generate', () => {
@@ -84,6 +95,31 @@ describe('POST /api/lessons/:id/generate', () => {
     expect(saved.at(-1)).toEqual({ type: 'callout', variant: 'note', text: 'Bad variant' });
     expect(saved.some((block) => block.type === 'flashcard')).toBe(false);
     expect(resources[0].type).toBe('article'); // unknown type repaired
+  });
+
+  it('replaces the AI video query with a real YouTube video', async () => {
+    const { lessonId } = await createCourse();
+    generateContent.mockResolvedValue(lessonResponse());
+
+    const res = await generate(lessonId);
+
+    const videoBlock = res.body.lesson.content.find((block) => block.type === 'video');
+    expect(videoBlock.query).toBeTruthy(); // kept as the fallback search link
+    expect(videoBlock.video).toMatchObject({ videoId: 'best1234567', durationSeconds: 780 });
+  });
+
+  it('still saves the lesson when YouTube fails, with the search query as fallback', async () => {
+    const { lessonId } = await createCourse();
+    generateContent.mockResolvedValue(lessonResponse());
+    vi.stubGlobal('fetch', quotaExceededFetch());
+    vi.spyOn(console, 'warn').mockImplementationOnce(() => {});
+
+    const res = await generate(lessonId);
+
+    expect(res.status).toBe(200);
+    const videoBlock = res.body.lesson.content.find((block) => block.type === 'video');
+    expect(videoBlock.video).toBeUndefined();
+    expect(videoBlock.query).toBeTruthy();
   });
 
   it('sends course, module and sibling lessons as context in the prompt', async () => {
