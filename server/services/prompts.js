@@ -69,9 +69,13 @@ ${objectives.length ? `Learning objectives:\n${objectives.map((o) => `- ${o}`).j
 ${outline}
 </lesson_content>
 
-Rules:
+Script rule (most important, the text goes to a text-to-speech voice):
+- Every Hindi word MUST be written in Devanagari script. Only English words (technical terms, common English words) stay in Latin script.
+  Correct: "नमस्ते दोस्तों! आज हम JavaScript में promises के बारे में सीखेंगे।"
+  Wrong:   "Namaste doston! Aaj hum JavaScript mein promises ke baare mein seekhenge."
+
+Other rules:
 - 150 to 220 words, about 1 to 1.5 minutes when spoken.
-- Write Hindi words in Devanagari script and keep English technical terms in English (Latin script), e.g. "आज हम React में useEffect hook के बारे में सीखेंगे।"
 - Sound like a friendly teacher talking to one student: a short greeting, the core idea explained with one simple real-life example, and a one-line recap at the end.
 - It will be read aloud: no Markdown, lists, headings, emojis or URLs. Never read code aloud; say in words what the code does.
 - Stay accurate to the lesson content. Do not add new facts.
