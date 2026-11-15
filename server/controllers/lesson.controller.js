@@ -1,5 +1,6 @@
 import * as lessonService from '../services/lesson.service.js';
 import * as narrationService from '../services/narration.service.js';
+import * as progressService from '../services/progress.service.js';
 
 // requireAuth has verified the token, so req.user.sub is the logged-in user's Auth0 id.
 const getUserId = (req) => req.user.sub;
@@ -31,4 +32,10 @@ export async function getNarrationAudio(req, res) {
     .type(mimeType)
     .set('Cache-Control', 'private, max-age=86400') // per user, and it never changes once recorded
     .send(data);
+}
+
+/** PUT /api/lessons/:id/progress   body: { completed?, quizAnswers? }  (the server grades the quiz) */
+export async function updateProgress(req, res) {
+  const progress = await progressService.updateLessonProgress(getUserId(req), req.params.id, req.body);
+  res.json({ progress });
 }
