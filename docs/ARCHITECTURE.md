@@ -45,11 +45,14 @@ Edify/
 │       │   ├── blocks/              Heading, Paragraph, List, Code, Callout, Video, MCQ (+ InlineText)
 │       │   ├── course/              CourseCard, CourseOutline, LevelBadge
 │       │   ├── ui/                  LoadingSpinner, ErrorMessage, Skeleton
-│       │   └── PromptForm, GeneratingCourse, Sidebar, UserMenu, ServerStatus, Logo
+│       │   └── PromptForm, GeneratingCourse, Sidebar, UserMenu, ServerStatus, ThemeToggle, Logo,
+│       │       NarrationPlayer, LessonCompletion, DownloadPdfButton
 │       ├── pages/             HomePage, CourseLayout, CoursePage, LessonPage, NotFoundPage
-│       ├── hooks/             useCourse, useLesson, useCourses, useServerStatus, useDocumentTitle
-│       ├── context/           CoursesProvider (global course list)
-│       ├── utils/             api.js (axios + endpoint helpers), paths.js (URL builders), inlineFormat.js, format.js
+│       ├── hooks/             useCourse, useLesson, useLessonProgress, useCourses, useTheme,
+│       │                      useServerStatus, useDocumentTitle
+│       ├── context/           CoursesProvider (global course list), ThemeProvider (light / dark / system)
+│       ├── utils/             api.js (axios + endpoint helpers), paths.js (URL builders), inlineFormat.js, format.js,
+│       │                      theme.js (read / save / apply the theme)
 │       ├── App.jsx            layout (sidebar + <Outlet/>)
 │       └── main.jsx           providers + routes
 ├── server/                    Express API (deployed to Render)
@@ -416,6 +419,32 @@ generating, `markLessonEnriched()` updates that shared copy and the outline's ch
   outline updates without a refetch; the global course list refreshes only when completion actually changed.
 - `MCQBlock` became a **controlled component**: `LessonRenderer` owns all answers (needed to save and restore them).
 
+### Dark mode
+
+A **Light / Dark / System** switch in the sidebar footer. *System* (the default) follows the OS setting.
+
+- **How colours switch:** every colour is a CSS variable (`--canvas`, `--surface`, `--ink`, `--muted`,
+  `--brand`, ...) mapped to Tailwind utilities in `index.css` (`bg-canvas`, `text-muted`, ...). Dark mode
+  only redefines those variables under a `.dark` class on `<html>`, so most components need no `dark:`
+  classes at all. Only fixed status colours (green "correct", red errors, amber warnings) carry `dark:`
+  variants, because a shade that reads well on white is too dim on near-black (and vice versa).
+- **Where the choice lives:** `ThemeProvider` keeps `theme` (what the user picked) and `resolvedTheme`
+  (what is shown). The pick is saved in `localStorage` (`edify-theme`; *System* = nothing saved).
+- **No white flash on reload:** React only runs after the JS bundle downloads, so a dark-mode user would
+  first see a white page. A tiny inline script in `index.html` reads the saved choice and adds `.dark`
+  *before the first paint*. Verified by reloading with the app bundle blocked: the page was still dark.
+- **Live updates:** on *System*, a `matchMedia('(prefers-color-scheme: dark)')` listener follows the OS
+  (e.g. when it switches to dark at sunset). A `storage` event listener makes other open tabs follow a change.
+- **Clean switch:** transitions are paused for one frame while the class flips, otherwise buttons and
+  links with `transition-colors` would fade slowly while the rest of the page changes instantly.
+- **Accessible control:** `ThemeToggle` is made of real (visually hidden) radio inputs in a `<fieldset>`,
+  so it gets one Tab stop, arrow-key navigation and "Theme, Dark, radio button, 2 of 3" for screen
+  readers without any custom keyboard code. The focus ring is drawn on the label with `has-focus-visible:`.
+- **Contrast:** text colours were measured in both themes against WCAG AA (4.5:1 for normal text).
+  This caught "Correct!" in light mode (about 3.4:1, now emerald-700 at 4.7:1) and brand text on the
+  brand tint in dark mode (4.4:1, now 4.6:1 after darkening `--brand-soft`).
+- The **PDF export** always uses its own light print styles, whatever the screen theme is.
+
 ### PDF export (`src/pdf/`)
 
 Two exports: **Download PDF** on a lesson, and **Course PDF** on the course page (a small book: cover,
@@ -502,5 +531,6 @@ Secrets live **only** on the server. Anything prefixed `VITE_` ends up in public
 - [x] Phase 6: PDF export: lesson PDF + full-course PDF (cover, clickable contents, bookmarks, answer key)
 - [x] Phase 7: Hinglish audio narration (Gemini script + TTS, MP3, stored once per lesson)
 - [x] Phase 8a: Progress tracking (completion, saved quiz answers graded on the server, progress bars)
-- [ ] Phase 8b: Extras (dark mode, "ask a doubt" tutor, share links)
+- [x] Phase 8b: Dark mode (light / dark / system, saved, no flash on load, WCAG AA contrast)
+- [ ] Phase 8c: Extras ("ask a doubt" tutor, share links)
 - [ ] Phase 9: Deploy (Render + Vercel), README, demo video
