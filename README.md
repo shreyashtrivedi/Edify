@@ -35,6 +35,7 @@ npm run dev
 ```
 
 Leave `MONGO_URI` empty for local development and the API uses a temporary in-memory MongoDB.
+No Gemini key yet? Set `AI_MOCK=true` in `server/.env` to use realistic sample content instead.
 
 ## Scripts
 
