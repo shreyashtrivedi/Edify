@@ -34,8 +34,8 @@ export function useCourse(courseId) {
 
   const reload = useCallback(() => setReloadCount((count) => count + 1), []);
 
-  /** Marks a lesson as generated locally, so outlines update without refetching. */
-  const markLessonEnriched = useCallback((lessonId) => {
+  /** Updates one lesson of the shared course copy, so outlines update without refetching. */
+  const patchLesson = useCallback((lessonId, patch) => {
     setResult((current) => ({
       ...current,
       course: current.course && {
@@ -43,12 +43,21 @@ export function useCourse(courseId) {
         modules: current.course.modules.map((module) => ({
           ...module,
           lessons: module.lessons.map((lesson) =>
-            lesson._id === lessonId ? { ...lesson, isEnriched: true } : lesson,
+            lesson._id === lessonId ? { ...lesson, ...patch } : lesson,
           ),
         })),
       },
     }));
   }, []);
 
-  return { course, status, error: result.error, reload, markLessonEnriched };
+  const markLessonEnriched = useCallback(
+    (lessonId) => patchLesson(lessonId, { isEnriched: true }),
+    [patchLesson],
+  );
+  const updateLessonProgress = useCallback(
+    (lessonId, progress) => patchLesson(lessonId, { progress }),
+    [patchLesson],
+  );
+
+  return { course, status, error: result.error, reload, markLessonEnriched, updateLessonProgress };
 }

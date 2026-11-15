@@ -22,43 +22,61 @@ const BLOCK_COMPONENTS = {
   mcq: MCQBlock,
 };
 
-export default function LessonRenderer({ content }) {
-  // Quiz results by block index: { 12: true, 13: false }
-  const [results, setResults] = useState({});
+/**
+ * @param {object[]} props.content          lesson blocks
+ * @param {(number|null)[]} props.initialAnswers  saved quiz answers (one per question)
+ * @param {(answers) => void} props.onAnswersChange  called after every answer, to save it
+ */
+export default function LessonRenderer({ content, initialAnswers = [], onAnswersChange }) {
+  const questions = content.filter((block) => block.type === 'mcq');
+  // One entry per question: the chosen option index, or null if unanswered.
+  const [answers, setAnswers] = useState(() => questions.map((_, i) => initialAnswers[i] ?? null));
 
-  const mcqIndexes = content.flatMap((block, index) => (block.type === 'mcq' ? [index] : []));
-  const answeredCount = Object.keys(results).length;
-  const correctCount = Object.values(results).filter(Boolean).length;
+  const answeredCount = answers.filter((answer) => answer !== null).length;
+  const correctCount = answers.filter(
+    (answer, i) => answer !== null && answer === questions[i].answer,
+  ).length;
+
+  function selectAnswer(questionIndex, option) {
+    const next = answers.map((answer, i) => (i === questionIndex ? option : answer));
+    setAnswers(next);
+    onAnswersChange?.(next);
+  }
+
+  // Block positions of the questions, so each mcq block knows its question number.
+  const questionBlockIndexes = content.flatMap((block, index) => (block.type === 'mcq' ? [index] : []));
 
   return (
     <div>
       {content.map((block, index) => {
         const Block = BLOCK_COMPONENTS[block.type];
         if (!Block) return null;
-
         if (block.type !== 'mcq') return <Block key={index} {...block} />;
 
-        const number = mcqIndexes.indexOf(index) + 1;
+        const current = questionBlockIndexes.indexOf(index);
         return (
           <div key={index}>
-            {number === 1 && (
+            {current === 0 && (
               <div className="mt-12 mb-2 flex flex-wrap items-end justify-between gap-2 border-t border-line pt-8">
                 <h2 className="font-display text-2xl font-semibold tracking-tight">
                   Check your understanding
                 </h2>
                 {answeredCount > 0 && (
                   <p className="rounded-full bg-brand-soft px-3 py-1 text-sm font-semibold text-brand">
-                    Score: {correctCount}/{mcqIndexes.length}
-                    {answeredCount === mcqIndexes.length && (correctCount === mcqIndexes.length ? ' 🎉' : '')}
+                    Score: {correctCount}/{questions.length}
+                    {answeredCount === questions.length && correctCount === questions.length
+                      ? ' 🎉'
+                      : ''}
                   </p>
                 )}
               </div>
             )}
             <MCQBlock
               {...block}
-              number={number}
-              total={mcqIndexes.length}
-              onAnswer={(correct) => setResults((current) => ({ ...current, [index]: correct }))}
+              number={current + 1}
+              total={questions.length}
+              selected={answers[current]}
+              onSelect={(option) => selectAnswer(current, option)}
             />
           </div>
         );
