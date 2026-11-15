@@ -38,6 +38,10 @@ const envSchema = z
       .default('false')
       .transform((value) => value === 'true'),
 
+    // YouTube Data API v3: turns the AI's video search queries into real, embeddable videos.
+    // Optional: without it, lessons show a "search on YouTube" link instead of a player.
+    YOUTUBE_API_KEY: optionalString,
+
     // Authentication (Auth0). The domain is accepted with or without "https://".
     AUTH0_DOMAIN: optionalString.transform((domain) =>
       domain?.replace(/^https?:\/\//, '').replace(/\/+$/, ''),

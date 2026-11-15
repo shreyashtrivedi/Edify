@@ -3,7 +3,8 @@
  *
  * A lesson starts as a shell (title only). The first time it is opened, the frontend
  * calls generateLessonContent(): the AI writes the content, lessonContentSchema validates
- * and cleans it (dropping malformed blocks), and we save it and flip isEnriched → true.
+ * and cleans it (dropping malformed blocks), the video search query is resolved to a real
+ * YouTube video, and we save it and flip isEnriched → true.
  * Every later visit is served straight from MongoDB.
  */
 import { Course } from '../models/Course.js';
@@ -14,6 +15,7 @@ import { ApiError } from '../utils/ApiError.js';
 import { generateJSON } from './gemini.service.js';
 import { mockLessonContent } from './mocks/mockAi.js';
 import { SYSTEM_INSTRUCTION, generateLessonPrompt } from './prompts.js';
+import { attachVideos } from './youtube.service.js';
 
 /**
  * Generations currently running, keyed by lesson id. If two requests for the same lesson
@@ -76,7 +78,8 @@ async function enrichLesson(lesson, course) {
 
   lesson.objectives = data.objectives;
   lesson.keyTopics = data.keyTopics;
-  lesson.content = data.content; // already validated + cleaned by lessonContentSchema
+  // Already validated + cleaned by lessonContentSchema; now resolve video queries to real videos.
+  lesson.content = await attachVideos(data.content);
   lesson.resources = data.resources;
   lesson.isEnriched = true;
   await lesson.save();
