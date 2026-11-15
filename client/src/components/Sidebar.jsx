@@ -4,6 +4,7 @@ import { useCourses } from '../hooks/useCourses';
 import { coursePath } from '../utils/paths';
 import Logo from './Logo';
 import ServerStatus from './ServerStatus';
+import ThemeToggle from './ThemeToggle';
 import Skeleton from './ui/Skeleton';
 import UserMenu from './UserMenu';
 
@@ -80,8 +81,9 @@ export default function Sidebar({ open, onClose }) {
 
         <div className="space-y-3 border-t border-line px-4 py-4">
           <UserMenu />
-          <div className="px-1">
+          <div className="flex items-center justify-between gap-2 pl-1">
             <ServerStatus />
+            <ThemeToggle />
           </div>
         </div>
       </aside>

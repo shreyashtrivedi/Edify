@@ -51,7 +51,7 @@
   --line: #2e2e33;
   --brand: #7c7cf5;
   --brand-strong: #9b9bff;
-  --brand-soft: #23233f;
+  --brand-soft: #1f1f3a; /* dark enough that brand text on it passes WCAG AA (4.5:1) */
   --on-brand: #0e0e1a;
   color-scheme: dark;
 }

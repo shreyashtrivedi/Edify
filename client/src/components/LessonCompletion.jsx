@@ -16,7 +16,7 @@ export default function LessonCompletion({ progress, saving, error, onToggle }) 
       aria-live="polite"
     >
       <CircleCheck
-        className={`size-8 shrink-0 ${completed ? 'text-emerald-600' : 'text-muted opacity-40'}`}
+        className={`size-8 shrink-0 ${completed ? 'text-emerald-600 dark:text-emerald-400' : 'text-muted opacity-40'}`}
         aria-hidden="true"
       />
       <div className="min-w-0 flex-1">
@@ -28,7 +28,7 @@ export default function LessonCompletion({ progress, saving, error, onToggle }) 
             : 'Answering every quiz question also marks it complete.'}
         </p>
         {error && (
-          <p className="mt-1 text-sm text-red-600" role="alert">
+          <p className="mt-1 text-sm text-red-600 dark:text-red-400" role="alert">
             Couldn&apos;t save your progress: {error}
           </p>
         )}
