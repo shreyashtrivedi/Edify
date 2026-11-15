@@ -12,19 +12,21 @@ explanations, code, a video and a quiz.
 ## 1. System overview
 
 ```
- Browser: React + Vite + Tailwind (Vercel)
-   │   axios → {VITE_API_URL}/api/...
+ Browser: React + Vite + Tailwind (Vercel) ◄──── login ────► Auth0 (hosted login, Google)
+   │   axios → {VITE_API_URL}/api/...  +  Authorization: Bearer <access token>
    ▼
  Express API: Node 22 (Render)
    ├─ helmet · cors · json · morgan       (global middleware)
-   ├─ /api/health                          health + DB status (also wakes Render)
-   ├─ /api/courses                         generate outline / list / get / delete
-   ├─ /api/lessons                         get / generate content on first open
-   │     └─ course|lesson.service ──► gemini.service ──► Google Gemini
+   ├─ /api/health                          public: health + DB status (also wakes Render)
+   ├─ requireAuth                          verifies the Auth0 token → req.user.sub
+   │   ├─ /api/courses                     generate outline / list / get / delete
+   │   ├─ /api/lessons                     get / generate content on first open
+   │   │     └─ course|lesson.service ──► gemini.service ──► Google Gemini
+   │   └─ /api/users/me                    profile sync + stats
    └─ errorHandler                         one JSON error shape for everything
    ▼
  MongoDB (Atlas in prod, in-memory in local dev/tests)
-   courses · modules · lessons
+   courses · modules · lessons · users
 ```
 
 ## 2. Repository layout
@@ -33,12 +35,14 @@ explanations, code, a video and a quiz.
 Edify/
 ├── client/                    React app (deployed to Vercel)
 │   └── src/
+│       ├── auth/              AuthProvider (Auth0 + token → axios), RequireAuth (route guard), config
 │       ├── components/
+│       │   ├── home/                Landing (logged-out home page)
 │       │   ├── LessonRenderer.jsx   content[] → block components
 │       │   ├── blocks/              Heading, Paragraph, List, Code, Callout, Video, MCQ (+ InlineText)
 │       │   ├── course/              CourseCard, CourseOutline, LevelBadge
 │       │   ├── ui/                  LoadingSpinner, ErrorMessage, Skeleton
-│       │   └── PromptForm, GeneratingCourse, Sidebar, ServerStatus, Logo
+│       │   └── PromptForm, GeneratingCourse, Sidebar, UserMenu, ServerStatus, Logo
 │       ├── pages/             HomePage, CourseLayout, CoursePage, LessonPage, NotFoundPage
 │       ├── hooks/             useCourse, useLesson, useCourses, useServerStatus, useDocumentTitle
 │       ├── context/           CoursesProvider (global course list)
@@ -54,7 +58,7 @@ Edify/
 │   ├── services/              business logic + external APIs (Gemini, prompts)
 │   ├── models/                Mongoose schemas
 │   ├── schemas/               zod schemas (requests + AI output)
-│   ├── middlewares/           validation, rate limiting, errors
+│   ├── middlewares/           auth (JWT check), validation, rate limiting, errors
 │   ├── utils/                 ApiError
 │   ├── scripts/               check-gemini.js (verify AI setup)
 │   └── tests/                 vitest + supertest + in-memory MongoDB
@@ -71,22 +75,94 @@ one below it. Controllers never talk to Gemini or build queries; services never 
 
 1. **Global middleware** (`app.js`): `helmet` sets security headers, `cors` allows only our
    frontend origin, `express.json` parses the body (max 100 kB).
-2. **Route** (`routes/course.routes.js`) runs a chain:
-   - `generationLimiter`: max 15 generations / 15 min per client (protects the AI quota).
+2. **Auth** (`routes/index.js` mounts `requireAuth` before every router except `/health`):
+   the `Authorization: Bearer` token is verified and `req.user.sub` is set. No/invalid token → **401**.
+3. **Route** (`routes/course.routes.js`) runs a chain:
+   - `generationLimiter`: max 15 generations / 15 min **per user** (protects the AI quota).
    - `validate({ body: generateCourseSchema })`: zod checks `prompt` (3–500 chars),
      `level` (enum), `moduleCount` (3–6, optional). Invalid → **400** with per-field errors.
-3. **Controller** (`course.controller.js`) pulls validated fields and calls the service.
-4. **Service** (`course.service.js`):
+4. **Controller** (`course.controller.js`) pulls validated fields + `req.user.sub` and calls the service.
+5. **Service** (`course.service.js`):
    - builds the prompt (`services/prompts.js`),
    - calls `generateJSON()` (`services/gemini.service.js`),
    - saves the result (`saveCourseOutline`) and returns the populated course.
-5. **Response:** `201 { course }`. Any thrown error ends up in `errorHandler` →
+6. **Response:** `201 { course }`. Any thrown error ends up in `errorHandler` →
    `{ error: { message, code?, details? } }`.
 
 Express 5 forwards errors thrown in `async` handlers to the error middleware automatically,
 so there is no try/catch boilerplate in controllers.
 
-## 4. The AI generation pipeline
+## 4. Authentication (Auth0)
+
+Auth0 handles everything about identity: sign-up, passwords, Google login, email verification.
+Edify never sees a password. Our job is only to **verify who is calling** and **scope data to them**.
+
+### The flow
+
+```
+1. User clicks "Log in"          → loginWithRedirect() → Auth0 hosted login page
+2. User logs in (email / Google) → Auth0 redirects to http://localhost:5173/?code=…
+3. Auth0 SDK swaps the code      → ID token (who you are) + access token (what you may call)
+                                   (Authorization Code flow + PKCE: no client secret in the browser)
+4. Every API call                → axios interceptor adds  Authorization: Bearer <access token>
+5. Express requireAuth           → verifies the token → req.user.sub = "google-oauth2|1234…"
+6. Services                      → every query includes { creator: req.user.sub }
+```
+
+### How the server verifies a token (`middlewares/auth.js`)
+
+The access token is a **JWT** signed by Auth0 with its private key (RS256). `express-oauth2-jwt-bearer`
+checks, without calling Auth0 per request:
+
+| Check | Why |
+|---|---|
+| **Signature** against Auth0's public keys (JWKS, fetched once and cached) | nobody can forge or edit a token |
+| **Issuer** = `https://<tenant>.us.auth0.com/` | issued by *our* tenant, not some other Auth0 account |
+| **Audience** = `https://edify-api` | issued *for this API*, so a token for another app is useless here |
+| **Expiry** (`exp`) | stolen old tokens stop working |
+
+Failures become our standard error shape: `401 AUTH_REQUIRED` (no token), `401 TOKEN_EXPIRED`,
+`401 INVALID_TOKEN`.
+
+### Authorization: who can see what
+
+- `creator` on every Course is the token's `sub`. Every read/delete queries `{ _id, creator }`, and
+  lessons are checked through their course. Another user's id returns **404, not 403**, so users
+  can't even probe which ids exist. A test (`auth.test.js`) proves Bob can't read, generate or delete
+  Alice's content.
+- The frontend route guard (`RequireAuth`) is only for UX (it redirects to login and back to the
+  same page). **The real protection is the server**: the UI can be bypassed, the token check can't.
+- AI generation is rate-limited **per user** (`req.user.sub`), so people sharing one IP address
+  (a college Wi-Fi) don't block each other.
+
+### Frontend pieces
+
+| File | Role |
+|---|---|
+| `auth/AuthProvider.jsx` | `<Auth0Provider>` (inside the router so it can navigate back after login) + `ApiAuthBridge`, which hands `getAccessTokenSilently` to axios and syncs the profile once per login |
+| `utils/api.js` | request interceptor: awaits a token and sets the `Authorization` header |
+| `auth/RequireAuth.jsx` | layout route guarding `/courses/*`; saves `returnTo` in `appState` |
+| `components/UserMenu.jsx` | avatar + name + log out, or Log in / Sign up |
+| `components/home/Landing.jsx` | logged-out home page; shows the reason if a login failed |
+
+Session details: tokens are cached in `localStorage` and renewed with **refresh tokens**, because the
+older "hidden iframe" renewal is blocked by modern browsers' third-party-cookie rules.
+The token getter is registered in a `useLayoutEffect`, which React runs before all normal effects,
+so no component can fire a request before the token is available.
+
+### Users collection
+
+`User { auth0Id (unique), name, email, picture, lastLoginAt }`. After login the frontend calls
+`PUT /api/users/me` with the profile from Auth0 (an **upsert**: created on first login, updated after).
+It is display data only; permissions always come from the verified token.
+
+### Testing auth without Auth0
+
+`createApp({ requireAuth })` takes the middleware as a dependency. Tests inject the **same library**
+configured with a local HS256 secret and sign real tokens with `jose` (`tests/helpers/auth.js`), so
+signature, issuer, audience and expiry checks all run for real, offline and in milliseconds.
+
+## 5. The AI generation pipeline
 
 ### Two stages (token + latency optimisation)
 
@@ -172,16 +248,17 @@ refuses to start with `AI_MOCK=true` in production.
 - Concrete rules: module/lesson counts, foundations → advanced ordering, a final applied module,
   no duplicates, specific lesson titles (with a good vs bad example), level-specific guidance.
 
-## 5. Data model
+## 6. Data model
 
 ```
-Course 1 ──< Module 1 ──< Lesson
+Course 1 ──< Module 1 ──< Lesson          User (one per Auth0 account; Course.creator = User.auth0Id)
 ```
 
 | Model | Key fields |
 |---|---|
 | **Course** | `title`, `description`, `creator` (Auth0 `sub`), `modules[]` → Module, `tags[]`, `prompt`, `level`, timestamps |
 | **Module** | `title`, `description`, `course` → Course, `order`, `lessons[]` → Lesson |
+| **User** | `auth0Id` (unique, = token `sub`), `name`, `email`, `picture`, `lastLoginAt` |
 | **Lesson** | `title`, `module` → Module, `course` → Course, `order`, `objectives[]`, `keyTopics[]`, `content[]` (flexible blocks), `resources[]`, `isEnriched` |
 
 Design notes:
@@ -197,30 +274,35 @@ Design notes:
 - Courses are always queried with `{ _id, creator }`, so another user's course returns **404**
   (we don't even reveal it exists).
 
-## 6. API reference (implemented)
+## 7. API reference (implemented)
 
 | Method | Path | Body / notes | Success |
 |---|---|---|---|
-| GET | `/api/health` | DB status, uptime | `200` |
+| GET | `/api/health` | DB status, uptime. **Public** | `200` |
 | POST | `/api/courses/generate` | `{ prompt, level?, moduleCount? }`, rate-limited | `201 { course }` |
 | GET | `/api/courses` | user's courses + `moduleCount`, `lessonCount`, `enrichedCount` | `200 { courses }` |
 | GET | `/api/courses/:id` | course + modules + lesson titles (no content) | `200 { course }` |
 | DELETE | `/api/courses/:id` | cascades to modules + lessons | `204` |
 | GET | `/api/lessons/:id` | one lesson (empty `content` until generated) | `200 { lesson }` |
 | POST | `/api/lessons/:id/generate` | `{ force? }`, rate-limited; returns stored content if already generated | `200 { lesson }` |
+| PUT | `/api/users/me` | `{ name?, email?, picture? }`: create/update profile after login | `200 { user }` (with `stats`) |
+| GET | `/api/users/me` | profile + `stats: { courses, lessonsGenerated }` | `200 { user }` |
+
+Every route except `/api/health` requires `Authorization: Bearer <Auth0 access token>`, otherwise **401**.
 
 Error shape (all endpoints): `{ "error": { "message": "...", "code": "VALIDATION_ERROR", "details": [...] } }`
 
-## 7. Frontend
+## 8. Frontend
 
 ### Routes (React Router v7, declared in `main.jsx`)
 
 ```
 /                                                   App (sidebar layout)
-├── (index)                                         HomePage: PromptForm + your courses
-├── courses/:courseId                               CourseLayout: loads the course once
-│   ├── (index)                                     CoursePage: overview + modules + lessons
-│   └── module/:moduleIndex/lesson/:lessonIndex     LessonPage (1-based numbers in the URL)
+├── (index)                                         HomePage: Landing (logged out) or PromptForm + your courses
+├── RequireAuth                                     login required for everything below
+│   └── courses/:courseId                           CourseLayout: loads the course once
+│       ├── (index)                                 CoursePage: overview + modules + lessons
+│       └── module/:moduleIndex/lesson/:lessonIndex LessonPage (1-based numbers in the URL)
 └── *                                               NotFoundPage
 ```
 
@@ -230,8 +312,8 @@ generating, `markLessonEnriched()` updates that shared copy and the outline's ch
 
 ### State & data fetching
 
-- **`CoursesProvider` (Context):** the course list for the sidebar and home page. Loaded once; after a
-  create/delete it is updated locally instead of refetched.
+- **`CoursesProvider` (Context):** the course list for the sidebar and home page. Loaded once the user is
+  logged in (`idle` while logged out); after a create/delete it is updated locally instead of refetched.
 - **`useCourse(id)` / `useLesson(id)`:** custom hooks that return `{ data, status, error, retry }`.
   - Every request takes an `AbortController` signal, so navigating away cancels it and a slow
     response can never overwrite newer data.
@@ -256,7 +338,7 @@ generating, `markLessonEnriched()` updates that shared copy and the outline's ch
 AI text is **never** inserted as HTML. `InlineText` parses `**bold**`, `*italic*` and `` `code` ``
 into React elements, so injected `<script>` or HTML in AI output is displayed as plain text.
 
-## 8. Configuration
+## 9. Configuration
 
 Validated once at startup by `server/config/env.js` (zod). Bad config → the server refuses to start
 with a readable message, instead of failing on the first request.
@@ -267,27 +349,30 @@ with a readable message, instead of failing on the first request.
 | `CLIENT_URL` | server | allowed CORS origin(s), comma-separated |
 | `GEMINI_API_KEY`, `GEMINI_MODEL` | server | AI access; model defaults to `gemini-3.5-flash-lite` |
 | `AI_MOCK` | server | `true` = sample content instead of Gemini (dev only, rejected in production) |
+| `AUTH0_DOMAIN`, `AUTH0_AUDIENCE` | server | which tenant issues tokens and which API they must be for (required in production) |
+| `VITE_AUTH0_DOMAIN`, `VITE_AUTH0_CLIENT_ID`, `VITE_AUTH0_AUDIENCE` | client | Auth0 login settings (public by design: SPAs have no client secret) |
 | `VITE_API_URL` | client | backend base URL (public, baked into the bundle) |
 
 Secrets live **only** on the server. Anything prefixed `VITE_` ends up in public JavaScript.
 
-## 9. Quality & tooling
+## 10. Quality & tooling
 
 - **Tests:** vitest + supertest against an in-memory MongoDB; the Gemini SDK is mocked, so tests
-  are fast, free and deterministic. Covered: validation, persistence, cascade delete, retry on
+  are fast, free and deterministic. Covered: authentication (missing/forged/expired/wrong-audience
+  tokens), data isolation between users, validation, persistence, cascade delete, retry on
   invalid AI output, error mapping, JSON parsing, lesson caching, in-flight dedupe, block
   normalisation, and mock data staying in sync with the schemas.
 - **Lint:** ESLint (server), oxlint (client).
 - **CI:** GitHub Actions runs lint + tests (server) and lint + build (client) on every push/PR.
 - **Git workflow:** one feature branch per phase, merged into `main` with `--no-ff`.
 
-## 10. Roadmap
+## 11. Roadmap
 
 - [x] Phase 0: Monorepo scaffold, health check, CI
 - [x] Phase 1: Models + AI course-outline generation
 - [x] Phase 2: Frontend: prompt form, course page, lesson renderer + blocks, loading/error states
 - [x] Phase 3: On-demand lesson generation (objectives, blocks, 4–5 MCQs, readings)
-- [ ] Phase 4: Auth0 login + per-user courses
+- [x] Phase 4: Auth0 login + per-user courses, user profiles, per-user rate limits
 - [ ] Phase 5: YouTube videos (cached) · Phase 6: PDF export · Phase 7: Hinglish TTS
 - [ ] Phase 8: Extras (progress tracking, dark mode, "ask a doubt" tutor, share links)
 - [ ] Phase 9: Deploy (Render + Vercel), README, demo video
