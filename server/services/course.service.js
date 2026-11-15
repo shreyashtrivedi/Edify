@@ -8,6 +8,7 @@ import { Module } from '../models/Module.js';
 import { courseOutlineSchema } from '../schemas/course.schemas.js';
 import { ApiError } from '../utils/ApiError.js';
 import { generateJSON } from './gemini.service.js';
+import { mockCourseOutline } from './mocks/mockAi.js';
 import { SYSTEM_INSTRUCTION, generateCoursePrompt } from './prompts.js';
 
 /**
@@ -19,6 +20,7 @@ export async function generateCourse({ prompt, level, moduleCount, creator }) {
     systemInstruction: SYSTEM_INSTRUCTION,
     schema: courseOutlineSchema,
     label: 'course outline',
+    mock: () => mockCourseOutline(prompt),
   });
 
   return saveCourseOutline(outline, { creator, prompt, level });
