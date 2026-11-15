@@ -88,6 +88,7 @@ function toApiError(error) {
  * @param {string}  [options.label]            name used in logs, e.g. "course outline"
  * @param {number}  [options.temperature]      creativity (0 = deterministic)
  * @param {number}  [options.maxAttempts]      attempts when the output is invalid
+ * @param {Function} [options.mock]            returns sample data when AI_MOCK=true (dev only)
  * @returns {Promise<{ data: any, usage?: object }>}
  */
 export async function generateJSON({
@@ -97,7 +98,14 @@ export async function generateJSON({
   label = 'generation',
   temperature = 0.7,
   maxAttempts = 2,
+  mock,
 }) {
+  if (env.AI_MOCK && mock) {
+    // Simulate network latency so loading states can be seen and tested.
+    await new Promise((resolve) => setTimeout(resolve, 1200));
+    return { data: schema.parse(mock()) };
+  }
+
   const ai = getClient();
   const responseJsonSchema = toGeminiSchema(schema);
 

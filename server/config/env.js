@@ -31,10 +31,20 @@ const envSchema = z
     // AI (Google Gemini)
     GEMINI_API_KEY: optionalString,
     GEMINI_MODEL: z.string().default('gemini-3.5-flash-lite'),
+
+    // Development only: return realistic sample content instead of calling Gemini
+    AI_MOCK: z
+      .enum(['true', 'false'])
+      .default('false')
+      .transform((value) => value === 'true'),
   })
   .refine((data) => data.NODE_ENV !== 'production' || data.MONGO_URI, {
     message: 'MONGO_URI is required in production',
     path: ['MONGO_URI'],
+  })
+  .refine((data) => data.NODE_ENV !== 'production' || !data.AI_MOCK, {
+    message: 'AI_MOCK cannot be enabled in production',
+    path: ['AI_MOCK'],
   });
 
 const parsed = envSchema.safeParse(process.env);
