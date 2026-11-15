@@ -4,6 +4,7 @@
  */
 import { Course } from '../models/Course.js';
 import { Lesson } from '../models/Lesson.js';
+import { LessonAudio } from '../models/LessonAudio.js';
 import { Module } from '../models/Module.js';
 import { courseOutlineSchema } from '../schemas/course.schemas.js';
 import { ApiError } from '../utils/ApiError.js';
@@ -163,6 +164,7 @@ export async function deleteCourseForUser(courseId, creator) {
 async function deleteCourseTree(courseId) {
   await Promise.all([
     Lesson.deleteMany({ course: courseId }),
+    LessonAudio.deleteMany({ course: courseId }),
     Module.deleteMany({ course: courseId }),
     Course.deleteOne({ _id: courseId }),
   ]);

@@ -31,6 +31,9 @@ const envSchema = z
     // AI (Google Gemini)
     GEMINI_API_KEY: optionalString,
     GEMINI_MODEL: z.string().default('gemini-3.5-flash-lite'),
+    // Text-to-speech model and voice for the Hinglish lesson narration
+    GEMINI_TTS_MODEL: z.string().default('gemini-3.8-flash-lite-tts'),
+    GEMINI_TTS_VOICE: z.string().default('Kore'),
 
     // Development only: return realistic sample content instead of calling Gemini
     AI_MOCK: z

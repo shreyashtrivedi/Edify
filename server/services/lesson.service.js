@@ -9,6 +9,7 @@
  */
 import { Course } from '../models/Course.js';
 import { Lesson } from '../models/Lesson.js';
+import { LessonAudio } from '../models/LessonAudio.js';
 import { Module } from '../models/Module.js';
 import { lessonContentSchema } from '../schemas/lesson.schemas.js';
 import { ApiError } from '../utils/ApiError.js';
@@ -25,7 +26,7 @@ import { attachVideos } from './youtube.service.js';
 const inFlight = new Map();
 
 /** Loads a lesson and checks that its course belongs to the user (404 otherwise). */
-async function findOwnedLesson(lessonId, creator) {
+export async function findOwnedLesson(lessonId, creator) {
   const lesson = await Lesson.findById(lessonId);
   if (!lesson) throw ApiError.notFound('Lesson not found');
 
@@ -82,6 +83,12 @@ async function enrichLesson(lesson, course) {
   lesson.content = await attachVideos(data.content);
   lesson.resources = data.resources;
   lesson.isEnriched = true;
+
+  // Regenerated content makes an old narration wrong, so it is removed (it can be recorded again).
+  if (lesson.narration) {
+    lesson.narration = undefined;
+    await LessonAudio.deleteOne({ lesson: lesson._id });
+  }
   await lesson.save();
 
   return lesson.toObject();

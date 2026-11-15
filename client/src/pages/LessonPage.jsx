@@ -1,9 +1,18 @@
-import { ArrowLeft, ArrowRight, ExternalLink, RefreshCw, Search, Sparkles, Target } from 'lucide-react';
+import {
+  ArrowLeft,
+  ArrowRight,
+  ExternalLink,
+  RefreshCw,
+  Search,
+  Sparkles,
+  Target,
+} from 'lucide-react';
 import { useEffect } from 'react';
 import { Link, useOutletContext, useParams } from 'react-router';
 import CourseOutline from '../components/course/CourseOutline';
 import DownloadPdfButton from '../components/DownloadPdfButton';
 import LessonRenderer from '../components/LessonRenderer';
+import NarrationPlayer from '../components/NarrationPlayer';
 import ErrorMessage from '../components/ui/ErrorMessage';
 import { LessonSkeleton } from '../components/ui/Skeleton';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
@@ -47,7 +56,10 @@ export default function LessonPage() {
   return (
     <div className="grid gap-10 xl:grid-cols-[minmax(0,1fr)_15rem]">
       <article className="min-w-0">
-        <nav className="flex flex-wrap items-center gap-1.5 text-sm text-muted" aria-label="Breadcrumb">
+        <nav
+          className="flex flex-wrap items-center gap-1.5 text-sm text-muted"
+          aria-label="Breadcrumb"
+        >
           <Link to={coursePath(course._id)} className="hover:text-brand hover:underline">
             {course.title}
           </Link>
@@ -92,8 +104,8 @@ export default function LessonPage() {
                 <div className="flex items-center gap-3 rounded-xl border border-brand/25 bg-brand-soft p-4 text-sm text-brand">
                   <Sparkles className="size-5 shrink-0 animate-pulse" aria-hidden="true" />
                   <span>
-                    <strong>Writing this lesson for you…</strong> This takes a few seconds the first time.
-                    After that it loads instantly.
+                    <strong>Writing this lesson for you…</strong> This takes a few seconds the first
+                    time. After that it loads instantly.
                   </span>
                 </div>
               )}
@@ -110,27 +122,43 @@ export default function LessonPage() {
               {lesson.objectives?.length > 0 && (
                 <section className="mb-8 rounded-2xl border border-line bg-surface p-5">
                   <h2 className="flex items-center gap-2 text-sm font-semibold tracking-wide text-muted uppercase">
-                    <Target className="size-4 text-brand" aria-hidden="true" /> What you&apos;ll learn
+                    <Target className="size-4 text-brand" aria-hidden="true" /> What you&apos;ll
+                    learn
                   </h2>
                   <ul className="mt-3 space-y-2">
                     {lesson.objectives.map((objective) => (
                       <li key={objective} className="flex gap-2 text-sm leading-6">
-                        <span className="text-brand" aria-hidden="true">✓</span> {objective}
+                        <span className="text-brand" aria-hidden="true">
+                          ✓
+                        </span>{' '}
+                        {objective}
                       </li>
                     ))}
                   </ul>
                 </section>
               )}
 
+              {/* key: regenerated content gets a fresh player (its old narration was deleted) */}
+              <NarrationPlayer
+                key={`narration-${lesson.updatedAt}`}
+                lessonId={lesson._id}
+                initialNarration={lesson.narration}
+              />
+
               {/* key forces a fresh renderer (and quiz score) when the content is regenerated */}
               <LessonRenderer key={lesson.updatedAt} content={lesson.content} />
 
               {lesson.keyTopics?.length > 0 && (
                 <section className="mt-12">
-                  <h2 className="text-sm font-semibold tracking-wide text-muted uppercase">Key topics</h2>
+                  <h2 className="text-sm font-semibold tracking-wide text-muted uppercase">
+                    Key topics
+                  </h2>
                   <div className="mt-3 flex flex-wrap gap-2">
                     {lesson.keyTopics.map((topic) => (
-                      <span key={topic} className="rounded-full bg-brand-soft px-3 py-1 text-sm text-brand">
+                      <span
+                        key={topic}
+                        className="rounded-full bg-brand-soft px-3 py-1 text-sm text-brand"
+                      >
                         {topic}
                       </span>
                     ))}
@@ -153,7 +181,10 @@ export default function LessonPage() {
                           className="group flex items-center gap-3 rounded-xl border border-line bg-surface px-4 py-3 text-sm hover:border-brand/40"
                         >
                           {resource.url ? (
-                            <ExternalLink className="size-4 shrink-0 text-muted" aria-hidden="true" />
+                            <ExternalLink
+                              className="size-4 shrink-0 text-muted"
+                              aria-hidden="true"
+                            />
                           ) : (
                             <Search className="size-4 shrink-0 text-muted" aria-hidden="true" />
                           )}
@@ -169,7 +200,10 @@ export default function LessonPage() {
           )}
         </div>
 
-        <nav className="mt-14 grid gap-3 border-t border-line pt-6 sm:grid-cols-2" aria-label="Lesson navigation">
+        <nav
+          className="mt-14 grid gap-3 border-t border-line pt-6 sm:grid-cols-2"
+          aria-label="Lesson navigation"
+        >
           {previous ? (
             <Link
               to={lessonPath(course._id, previous.moduleIndex, previous.lessonIndex)}
@@ -178,7 +212,9 @@ export default function LessonPage() {
               <span className="flex items-center gap-1 text-xs text-muted">
                 <ArrowLeft className="size-3.5" /> Previous
               </span>
-              <span className="mt-1 block text-sm font-medium group-hover:text-brand">{previous.lesson.title}</span>
+              <span className="mt-1 block text-sm font-medium group-hover:text-brand">
+                {previous.lesson.title}
+              </span>
             </Link>
           ) : (
             <span />
@@ -191,7 +227,9 @@ export default function LessonPage() {
               <span className="flex items-center justify-end gap-1 text-xs text-muted">
                 Next <ArrowRight className="size-3.5" />
               </span>
-              <span className="mt-1 block text-sm font-medium group-hover:text-brand">{next.lesson.title}</span>
+              <span className="mt-1 block text-sm font-medium group-hover:text-brand">
+                {next.lesson.title}
+              </span>
             </Link>
           )}
         </nav>

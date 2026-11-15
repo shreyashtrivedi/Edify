@@ -37,6 +37,13 @@ export function mockCourseOutline(topic) {
   };
 }
 
+/** Sample Hinglish narration script (AI_MOCK mode). */
+export function mockNarrationScript(lessonTitle) {
+  return {
+    script: `नमस्ते! आज हम "${lessonTitle}" के बारे में बात करेंगे। यह mock mode का sample narration है, इसलिए असली lesson की जगह आपको बस एक छोटी सी tone सुनाई देगी। जब AI_MOCK बंद होगा, तब Edify इस lesson को Hinglish में समझाएगा: पहले core idea, फिर एक real-life example, और आख़िर में एक quick recap। तो चलिए, शुरू करते हैं!`,
+  };
+}
+
 export function mockLessonContent(lessonTitle) {
   return {
     objectives: [

@@ -53,6 +53,37 @@ Return JSON in this shape:
 }
 
 /**
+ * Hinglish narration: a short spoken explanation of a lesson, later turned into audio.
+ *
+ * Why Devanagari + English instead of Roman Hinglish ("aaj hum seekhenge")? Text-to-speech
+ * pronounces Hindi far more naturally from Devanagari, while technical terms stay in English
+ * so they are pronounced (and recognised) the way developers actually say them.
+ */
+export function generateNarrationPrompt({ courseTitle, lessonTitle, level, objectives = [], outline }) {
+  return `Write a short audio narration (a spoken explanation) of the lesson below in Hinglish: the natural mix of Hindi and English that Indian students speak every day.
+
+Course: "${courseTitle}" (${level} level)
+Lesson: "${lessonTitle}"
+${objectives.length ? `Learning objectives:\n${objectives.map((o) => `- ${o}`).join('\n')}\n` : ''}
+<lesson_content>
+${outline}
+</lesson_content>
+
+Script rule (most important, the text goes to a text-to-speech voice):
+- Every Hindi word MUST be written in Devanagari script. Only English words (technical terms, common English words) stay in Latin script.
+  Correct: "नमस्ते दोस्तों! आज हम JavaScript में promises के बारे में सीखेंगे।"
+  Wrong:   "Namaste doston! Aaj hum JavaScript mein promises ke baare mein seekhenge."
+
+Other rules:
+- 150 to 220 words, about 1 to 1.5 minutes when spoken.
+- Sound like a friendly teacher talking to one student: a short greeting, the core idea explained with one simple real-life example, and a one-line recap at the end.
+- It will be read aloud: no Markdown, lists, headings, emojis or URLs. Never read code aloud; say in words what the code does.
+- Stay accurate to the lesson content. Do not add new facts.
+
+Return raw JSON: { "script": string }`;
+}
+
+/**
  * Stage 2: the full content of ONE lesson. Generated lazily on first open.
  * Sibling lesson titles are included so the AI stays in scope and avoids overlap.
  */

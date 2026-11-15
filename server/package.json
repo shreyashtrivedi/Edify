@@ -15,9 +15,11 @@
     "test:watch": "vitest",
     "lint": "eslint .",
     "check:ai": "node scripts/check-gemini.js",
-    "check:youtube": "node scripts/check-youtube.js"
+    "check:youtube": "node scripts/check-youtube.js",
+    "check:tts": "node scripts/check-tts.js"
   },
   "dependencies": {
+    "@breezystack/lamejs": "^1.2.7",
     "@google/genai": "^3.2.0",
     "cors": "^2.8.6",
     "dotenv": "^18.0.10",

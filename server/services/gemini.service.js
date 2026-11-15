@@ -14,7 +14,8 @@ import { ApiError } from '../utils/ApiError.js';
 
 let client = null;
 
-function getClient() {
+/** The shared Gemini SDK client (also used by tts.service.js). */
+export function getClient() {
   if (!env.GEMINI_API_KEY) {
     throw ApiError.serviceUnavailable('AI generation is not configured on the server.', {
       code: 'AI_NOT_CONFIGURED',
@@ -56,7 +57,7 @@ export function parseJSONResponse(text) {
 }
 
 /** Maps SDK / network errors to ApiErrors with user-friendly messages. */
-function toApiError(error) {
+export function toApiError(error) {
   if (error instanceof ApiError) return error;
 
   const status = error?.status;
