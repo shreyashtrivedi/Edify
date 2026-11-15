@@ -20,6 +20,8 @@ export async function generateCourse({ prompt, level, moduleCount, creator }) {
     systemInstruction: SYSTEM_INSTRUCTION,
     schema: courseOutlineSchema,
     label: 'course outline',
+    enforceSchema: true, // small, rigid shape: let Gemini enforce it during decoding
+    maxOutputTokens: 4096,
     mock: () => mockCourseOutline(prompt),
   });
 
