@@ -96,7 +96,7 @@ export default function NarrationPlayer({ lessonId, initialNarration }) {
         </p>
       )}
       {status === 'error' && (
-        <p className="mt-3 text-sm text-red-600" role="alert">
+        <p className="mt-3 text-sm text-red-600 dark:text-red-400" role="alert">
           {error}
         </p>
       )}

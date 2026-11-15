@@ -11,7 +11,13 @@ const SIZES = {
  * `onDownload` does the work (load the PDF code, fetch data, render, save).
  */
 
-export default function DownloadPdfButton({ onDownload, label = 'Download PDF', disabled = false, title, size = 'sm' }) {
+export default function DownloadPdfButton({
+  onDownload,
+  label = 'Download PDF',
+  disabled = false,
+  title,
+  size = 'sm',
+}) {
   const [state, setState] = useState('idle'); // idle | working | error
 
   async function handleClick() {
@@ -42,7 +48,7 @@ export default function DownloadPdfButton({ onDownload, label = 'Download PDF', 
         {state === 'working' ? 'Preparing PDF…' : label}
       </button>
       {state === 'error' && (
-        <span className="text-xs text-red-600" role="alert">
+        <span className="text-xs text-red-600 dark:text-red-400" role="alert">
           Couldn&apos;t create the PDF. Please try again.
         </span>
       )}

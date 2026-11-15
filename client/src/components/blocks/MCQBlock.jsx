@@ -62,9 +62,11 @@ export default function MCQBlock({
             <span className="flex-1">
               <InlineText text={option} />
             </span>
-            {answered && index === answer && <CircleCheck className="size-5 text-emerald-600" />}
+            {answered && index === answer && (
+              <CircleCheck className="size-5 text-emerald-600 dark:text-emerald-400" />
+            )}
             {answered && index === selected && !isCorrect && (
-              <CircleX className="size-5 text-red-500" />
+              <CircleX className="size-5 text-red-500 dark:text-red-400" />
             )}
           </button>
         ))}
@@ -72,7 +74,9 @@ export default function MCQBlock({
 
       {answered && (
         <div className="mt-4 rounded-lg bg-subtle p-4 text-sm leading-6" aria-live="polite">
-          <p className={`font-semibold ${isCorrect ? 'text-emerald-600' : 'text-red-500'}`}>
+          <p
+            className={`font-semibold ${isCorrect ? 'text-emerald-700 dark:text-emerald-400' : 'text-red-700 dark:text-red-400'}`}
+          >
             {isCorrect ? 'Correct!' : 'Not quite.'}
           </p>
           {explanation && (

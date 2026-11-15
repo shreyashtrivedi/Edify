@@ -118,7 +118,7 @@ export default function CoursePage() {
             type="button"
             onClick={handleDelete}
             disabled={deleting}
-            className="inline-flex items-center gap-2 rounded-xl border border-line px-4 py-2.5 text-sm font-medium text-muted hover:border-red-300 hover:text-red-600 disabled:opacity-50"
+            className="inline-flex items-center gap-2 rounded-xl border border-line px-4 py-2.5 text-sm font-medium text-muted hover:border-red-300 hover:text-red-600 disabled:opacity-50 dark:hover:border-red-900 dark:hover:text-red-400"
           >
             <Trash2 className="size-4" aria-hidden="true" /> {deleting ? 'Deleting…' : 'Delete'}
           </button>
