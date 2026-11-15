@@ -34,6 +34,20 @@ const lessonSchema = new mongoose.Schema(
     content: { type: [mongoose.Schema.Types.Mixed], default: [] }, // empty until enriched
     resources: { type: [resourceSchema], default: [] },
     isEnriched: { type: Boolean, default: false }, // true once the AI has generated the content
+
+    // Hinglish audio narration (created on request). The MP3 itself lives in LessonAudio.
+    narration: {
+      type: new mongoose.Schema(
+        {
+          transcript: { type: String, required: true },
+          durationSeconds: { type: Number, required: true },
+          voice: String,
+          generatedAt: { type: Date, default: Date.now },
+        },
+        { _id: false },
+      ),
+      default: undefined,
+    },
   },
   { timestamps: true },
 );
