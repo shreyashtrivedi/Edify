@@ -5,6 +5,7 @@ import { coursePath } from '../utils/paths';
 import Logo from './Logo';
 import ServerStatus from './ServerStatus';
 import Skeleton from './ui/Skeleton';
+import UserMenu from './UserMenu';
 
 const navLinkClass = ({ isActive }) =>
   `flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-colors ${
@@ -59,6 +60,9 @@ export default function Sidebar({ open, onClose }) {
               <Skeleton className="h-4 w-3/4" />
             </div>
           )}
+          {status === 'idle' && (
+            <p className="px-3 text-sm text-muted">Log in to create courses and find them here.</p>
+          )}
           {status === 'ready' && courses.length === 0 && (
             <p className="px-3 text-sm text-muted">Your generated courses will appear here.</p>
           )}
@@ -74,8 +78,11 @@ export default function Sidebar({ open, onClose }) {
           </ul>
         </nav>
 
-        <div className="border-t border-line px-5 py-4">
-          <ServerStatus />
+        <div className="space-y-3 border-t border-line px-4 py-4">
+          <UserMenu />
+          <div className="px-1">
+            <ServerStatus />
+          </div>
         </div>
       </aside>
     </>

@@ -1,17 +1,28 @@
+import { useAuth0 } from '@auth0/auth0-react';
 import { useState } from 'react';
 import { useNavigate } from 'react-router';
 import CourseCard from '../components/course/CourseCard';
 import GeneratingCourse from '../components/GeneratingCourse';
+import Landing from '../components/home/Landing';
 import PromptForm from '../components/PromptForm';
 import ErrorMessage from '../components/ui/ErrorMessage';
+import LoadingSpinner from '../components/ui/LoadingSpinner';
 import Skeleton from '../components/ui/Skeleton';
 import { useCourses } from '../hooks/useCourses';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { coursesApi, getErrorMessage } from '../utils/api';
 import { coursePath } from '../utils/paths';
 
+/** Logged out: the landing page. Logged in: the course generator and the user's courses. */
 export default function HomePage() {
   useDocumentTitle(null);
+  const { isAuthenticated, isLoading } = useAuth0();
+
+  if (isLoading) return <LoadingSpinner fullPage />;
+  return isAuthenticated ? <CourseGenerator /> : <Landing />;
+}
+
+function CourseGenerator() {
   const navigate = useNavigate();
   const { courses, status, addCourse } = useCourses();
   const [generating, setGenerating] = useState(null); // the topic being generated

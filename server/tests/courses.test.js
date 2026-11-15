@@ -1,6 +1,7 @@
 import request from 'supertest';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { courseOutline } from './fixtures/courseOutline.js';
+import { authHeader, createTestApp } from './helpers/auth.js';
 import { useTestDatabase } from './helpers/db.js';
 
 const { generateContent } = vi.hoisted(() => ({ generateContent: vi.fn() }));
@@ -10,18 +11,18 @@ vi.mock('@google/genai', () => ({
   },
 }));
 
-const { createApp } = await import('../app.js');
 const { Course } = await import('../models/Course.js');
 const { Module } = await import('../models/Module.js');
 const { Lesson } = await import('../models/Lesson.js');
 
 useTestDatabase();
-const app = createApp();
+// An agent sends the logged-in test user's token with every request.
+const api = request.agent(createTestApp()).set(await authHeader());
 
 const mockOutlineResponse = () =>
   generateContent.mockResolvedValue({ text: JSON.stringify(courseOutline) });
 
-const generate = (body) => request(app).post('/api/courses/generate').send(body);
+const generate = (body) => api.post('/api/courses/generate').send(body);
 
 beforeEach(() => {
   generateContent.mockReset();
@@ -88,7 +89,7 @@ describe('reading and deleting courses', () => {
     mockOutlineResponse();
     await generate({ prompt: 'Intro to React Hooks' });
 
-    const res = await request(app).get('/api/courses');
+    const res = await api.get('/api/courses');
 
     expect(res.status).toBe(200);
     expect(res.body.courses).toHaveLength(1);
@@ -104,22 +105,22 @@ describe('reading and deleting courses', () => {
     mockOutlineResponse();
     const created = await generate({ prompt: 'Intro to React Hooks' });
 
-    const res = await request(app).get(`/api/courses/${created.body.course._id}`);
+    const res = await api.get(`/api/courses/${created.body.course._id}`);
 
     expect(res.status).toBe(200);
     expect(res.body.course.modules[2].lessons).toHaveLength(3);
   });
 
   it('returns 400 for a malformed id and 404 for an unknown one', async () => {
-    expect((await request(app).get('/api/courses/not-an-id')).status).toBe(400);
-    expect((await request(app).get('/api/courses/507f1f77bcf86cd799439011')).status).toBe(404);
+    expect((await api.get('/api/courses/not-an-id')).status).toBe(400);
+    expect((await api.get('/api/courses/507f1f77bcf86cd799439011')).status).toBe(404);
   });
 
   it('deletes a course together with its modules and lessons', async () => {
     mockOutlineResponse();
     const created = await generate({ prompt: 'Intro to React Hooks' });
 
-    const res = await request(app).delete(`/api/courses/${created.body.course._id}`);
+    const res = await api.delete(`/api/courses/${created.body.course._id}`);
 
     expect(res.status).toBe(204);
     expect(await Course.countDocuments()).toBe(0);

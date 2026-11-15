@@ -1,6 +1,7 @@
 import request from 'supertest';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { courseOutline } from './fixtures/courseOutline.js';
+import { TEST_USER, authHeader, createTestApp } from './helpers/auth.js';
 import { useTestDatabase } from './helpers/db.js';
 
 const { generateContent } = vi.hoisted(() => ({ generateContent: vi.fn() }));
@@ -10,25 +11,24 @@ vi.mock('@google/genai', () => ({
   },
 }));
 
-const { createApp } = await import('../app.js');
 const { saveCourseOutline } = await import('../services/course.service.js');
 const { mockLessonContent } = await import('../services/mocks/mockAi.js');
 const { Lesson } = await import('../models/Lesson.js');
 
 useTestDatabase();
-const app = createApp();
+const api = request.agent(createTestApp()).set(await authHeader());
 
 const lessonResponse = (overrides = {}) => ({
   text: JSON.stringify({ ...mockLessonContent('Why React Introduced Hooks'), ...overrides }),
 });
 
 async function createCourse() {
-  const course = await saveCourseOutline(courseOutline, { creator: 'anonymous', level: 'beginner' });
+  const course = await saveCourseOutline(courseOutline, { creator: TEST_USER, level: 'beginner' });
   return { course, lessonId: String(course.modules[0].lessons[0]._id) };
 }
 
 const generate = (lessonId, body = {}) =>
-  request(app).post(`/api/lessons/${lessonId}/generate`).send(body);
+  api.post(`/api/lessons/${lessonId}/generate`).send(body);
 
 beforeEach(() => {
   generateContent.mockReset();
@@ -149,7 +149,7 @@ describe('GET /api/lessons/:id', () => {
   it('returns a lesson shell before generation', async () => {
     const { lessonId } = await createCourse();
 
-    const res = await request(app).get(`/api/lessons/${lessonId}`);
+    const res = await api.get(`/api/lessons/${lessonId}`);
 
     expect(res.status).toBe(200);
     expect(res.body.lesson).toMatchObject({ title: 'Why React Introduced Hooks', isEnriched: false });
@@ -157,7 +157,7 @@ describe('GET /api/lessons/:id', () => {
   });
 
   it('returns 404 for an unknown lesson', async () => {
-    const res = await request(app).get('/api/lessons/507f1f77bcf86cd799439011');
+    const res = await api.get('/api/lessons/507f1f77bcf86cd799439011');
     expect(res.status).toBe(404);
   });
 });
