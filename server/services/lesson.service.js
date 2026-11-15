@@ -2,13 +2,14 @@
  * Lesson business logic, i.e. stage 2 of the AI pipeline (lazy generation).
  *
  * A lesson starts as a shell (title only). The first time it is opened, the frontend
- * calls generateLessonContent(); the AI writes the content, we validate + normalise it,
- * save it and flip isEnriched → true. Every later visit is served straight from MongoDB.
+ * calls generateLessonContent(): the AI writes the content, lessonContentSchema validates
+ * and cleans it (dropping malformed blocks), and we save it and flip isEnriched → true.
+ * Every later visit is served straight from MongoDB.
  */
 import { Course } from '../models/Course.js';
 import { Lesson } from '../models/Lesson.js';
 import { Module } from '../models/Module.js';
-import { lessonContentSchema, normalizeBlock, normalizeResource } from '../schemas/lesson.schemas.js';
+import { lessonContentSchema } from '../schemas/lesson.schemas.js';
 import { ApiError } from '../utils/ApiError.js';
 import { generateJSON } from './gemini.service.js';
 import { mockLessonContent } from './mocks/mockAi.js';
@@ -67,13 +68,16 @@ async function enrichLesson(lesson, course) {
     systemInstruction: SYSTEM_INSTRUCTION,
     schema: lessonContentSchema,
     label: `lesson "${lesson.title}"`,
+    enforceSchema: false, // large flexible shape: JSON mode + forgiving zod validation works better
+    maxOutputTokens: 8192, // a lesson is ~2-4k tokens; the cap stops runaway output quickly
+    temperature: 0.5,
     mock: () => mockLessonContent(lesson.title),
   });
 
   lesson.objectives = data.objectives;
   lesson.keyTopics = data.keyTopics;
-  lesson.content = data.content.map(normalizeBlock);
-  lesson.resources = data.resources.map(normalizeResource);
+  lesson.content = data.content; // already validated + cleaned by lessonContentSchema
+  lesson.resources = data.resources;
   lesson.isEnriched = true;
   await lesson.save();
 

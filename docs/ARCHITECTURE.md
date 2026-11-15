@@ -107,9 +107,11 @@ each lesson is generated once, then served from MongoDB forever.
    the same lesson (double click, two tabs, React StrictMode) awaits the same promise → one AI call.
 4. The prompt includes the course title, level, module title and **sibling lesson titles**, so the
    AI stays in scope and doesn't repeat what neighbouring lessons cover.
-5. Output is validated, then **normalised**: each block is rebuilt with only the fields its type
-   allows; resource URLs that aren't valid `https` are dropped (the search-query fallback stays).
+5. Output is validated and cleaned by `lessonContentSchema` (see *forgiving validation* below).
 6. `force: true` (the *Regenerate* button) rewrites an existing lesson.
+
+Measured with the real API (`gemini-3.5-flash-lite`): outline ≈ 3 s / ~900 tokens,
+lesson ≈ 6–7 s / ~2,600 tokens, both valid on the first attempt.
 
 ### Lesson content blocks
 
@@ -123,9 +125,13 @@ each lesson is generated once, then served from MongoDB forever.
 | `video` | `query`: a YouTube **search query**, never a URL | `VideoBlock` |
 | `mcq` | `question`, `options[4]`, `answer` (0-based), `explanation` | `MCQBlock` (instant feedback + score) |
 
-**Why a flat block schema for the AI?** LLMs follow one flat object with optional fields far more
-reliably than a union of seven shapes. zod's `superRefine` enforces each type's required fields
-(e.g. an MCQ's `answer` must be a valid option index), and `normalizeBlock()` produces clean typed blocks.
+**Forgiving validation (`schemas/lesson.schemas.js`).** Each block type has its own small zod
+schema. A block that doesn't match (unknown type, list with one item, MCQ whose `answer` isn't a
+valid index…) is **dropped**, not fatal: we salvage the good content instead of paying for a full
+retry. Small mistakes are repaired (unknown callout variant → `note`, unknown resource type →
+`article`, non-https URL → removed but the search fallback stays) and unknown fields are stripped.
+The lesson is only rejected (→ one retry) if what remains isn't usable: fewer than 3 valid MCQs
+or fewer than 2 paragraphs.
 
 ### Mock mode (`AI_MOCK=true`, development only)
 
@@ -136,16 +142,28 @@ refuses to start with `AI_MOCK=true` in production.
 
 ### Making AI output reliable (`gemini.service.js`)
 
-1. **JSON mode + response schema.** The zod schema is converted to JSON Schema
-   (`z.toJSONSchema`) and sent as `responseJsonSchema`, so Gemini is constrained to our shape.
-   One schema definition = what we ask for **and** what we validate.
-2. **Defensive parsing:** strips ```` ```json ```` fences / surrounding prose if present.
-3. **zod validation:** wrong types, 2 lessons instead of 3–5, etc. are rejected.
-4. **One retry** on invalid output, then a clean `502 AI_INVALID_RESPONSE`.
-5. **Error mapping:** Gemini 429 → `429 AI_RATE_LIMITED`, blocked by safety filters → `422 AI_BLOCKED`,
+1. **Two output strategies, chosen per task** (`enforceSchema` option), decided by testing against the real API:
+
+   | | Course outline | Lesson content |
+   |---|---|---|
+   | Shape | small, rigid | large, flexible (7 block types) |
+   | Strategy | **schema-constrained decoding**: zod → JSON Schema (`z.toJSONSchema`) sent as `responseJsonSchema` | **plain JSON mode**: the prompt describes the format, zod validates + repairs afterwards |
+   | Why | Gemini is forced into the exact shape; one schema = what we ask for **and** what we validate | With the big schema, the fast model put text in the wrong fields and sometimes looped until the token limit; JSON mode + validation was reliable |
+
+2. **Gemini schema limits** (found the hard way, each returns `400 INVALID_ARGUMENT`): Gemini compiles a
+   response schema into a state machine and rejects ones that get too big, e.g. an array of objects
+   with a large `maxItems`. zod's default `.int()` bounds (±2⁵³) are also rejected. A unit test walks
+   every enforced schema and fails if it breaks these rules.
+3. **`maxOutputTokens` cap** (4,096 outline / 8,192 lesson): a runaway response fails in seconds
+   instead of hanging a request for minutes.
+4. **Defensive parsing:** strips ```` ```json ```` fences / surrounding prose if present.
+5. **zod validation:** wrong types, 2 lessons instead of 3–5, too few valid MCQs, etc. are rejected.
+6. **One retry** on invalid output, then a clean `502 AI_INVALID_RESPONSE`. Logs show the failing
+   field or the finish reason (e.g. `MAX_TOKENS`).
+7. **Error mapping:** Gemini 429 → `429 AI_RATE_LIMITED`, blocked by safety filters → `422 AI_BLOCKED`,
    missing key → `503 AI_NOT_CONFIGURED`. The SDK's default of 5 retries with up to 60 s
    back-off is reduced to 2 attempts + 60 s timeout so users never wait minutes.
-6. Token usage and latency are logged for every call (`🤖 course outline: 1234 tokens in 4100ms`).
+8. Token usage and latency are logged for every call (`🤖 course outline: 1234 tokens in 4100ms`).
 
 ### Prompt design (`prompts.js`)
 

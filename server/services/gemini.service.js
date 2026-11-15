@@ -81,10 +81,18 @@ function toApiError(error) {
 /**
  * Generates content that must match `schema`.
  *
+ * Two modes:
+ *  - enforceSchema: true  → the schema is sent to Gemini (constrained decoding). Best for
+ *    small, rigid shapes like the course outline.
+ *  - enforceSchema: false → plain JSON mode; the prompt describes the format and zod
+ *    validates/repairs afterwards. Better for large, flexible shapes like lesson content.
+ *
  * @param {object}  options
  * @param {string}  options.prompt             the user prompt (see services/prompts.js)
  * @param {string}  options.systemInstruction  persona + global rules
- * @param {import('zod').ZodType} options.schema  expected output shape
+ * @param {import('zod').ZodType} options.schema  expected output shape (always validated)
+ * @param {boolean} [options.enforceSchema]    also send the schema to Gemini
+ * @param {number}  [options.maxOutputTokens]  hard cap so a runaway response fails fast
  * @param {string}  [options.label]            name used in logs, e.g. "course outline"
  * @param {number}  [options.temperature]      creativity (0 = deterministic)
  * @param {number}  [options.maxAttempts]      attempts when the output is invalid
@@ -95,6 +103,8 @@ export async function generateJSON({
   prompt,
   systemInstruction,
   schema,
+  enforceSchema = true,
+  maxOutputTokens = 4096,
   label = 'generation',
   temperature = 0.7,
   maxAttempts = 2,
@@ -107,7 +117,7 @@ export async function generateJSON({
   }
 
   const ai = getClient();
-  const responseJsonSchema = toGeminiSchema(schema);
+  const responseJsonSchema = enforceSchema ? toGeminiSchema(schema) : undefined;
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     const startedAt = Date.now();
@@ -120,8 +130,9 @@ export async function generateJSON({
         config: {
           systemInstruction,
           temperature,
+          maxOutputTokens,
           responseMimeType: 'application/json',
-          responseJsonSchema,
+          ...(responseJsonSchema && { responseJsonSchema }),
         },
       });
     } catch (error) {
@@ -139,6 +150,7 @@ export async function generateJSON({
       });
     }
 
+    const finishReason = response.candidates?.[0]?.finishReason; // e.g. MAX_TOKENS = cut off
     try {
       const result = schema.safeParse(parseJSONResponse(text));
       if (result.success) {
@@ -148,9 +160,14 @@ export async function generateJSON({
         }
         return { data: result.data, usage: response.usageMetadata };
       }
-      console.warn(`⚠️  ${label}: output failed validation (attempt ${attempt}/${maxAttempts})`);
+      const issue = result.error.issues[0];
+      console.warn(
+        `⚠️  ${label}: failed validation at "${issue.path.join('.')}": ${issue.message} (attempt ${attempt}/${maxAttempts})`,
+      );
     } catch {
-      console.warn(`⚠️  ${label}: output was not valid JSON (attempt ${attempt}/${maxAttempts})`);
+      console.warn(
+        `⚠️  ${label}: not valid JSON, finish reason ${finishReason} (attempt ${attempt}/${maxAttempts})`,
+      );
     }
   }
 
