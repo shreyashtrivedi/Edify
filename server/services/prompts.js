@@ -76,10 +76,11 @@ Content rules:
   - { "type": "code", "language", "text" }: ONLY if the topic is technical/programming. Short, runnable, commented examples.
   - { "type": "callout", "variant": "tip"|"note"|"warning", "text" }: a practical tip, key note or common mistake.
   - { "type": "video", "query" }: exactly ONE, placed after the introduction. A specific YouTube search query (e.g. "useEffect cleanup function tutorial"), never a URL.
-  - { "type": "mcq", "question", "options", "answer", "explanation" }: 4 options each, "answer" is the 0-based index of the correct option, "explanation" says why it is correct.
+  - { "type": "mcq", "question", "options", "answer", "explanation" }: exactly 4 options, "answer" is the 0-based index of the correct option (a number), "explanation" says why it is correct.
+- Every block must have all the fields listed for its type and no others.
 - Structure: an introduction paragraph explaining why the topic matters, then the sections with explanations and examples, then a short summary paragraph, then 4-5 mcq blocks at the very END that test understanding (not trivia).
 - Be accurate. Use concrete, real-world examples. Explain jargon appropriately for the level.
-- "resources": 2-4 suggested readings. Include a "url" ONLY for a stable official page you are certain exists (official documentation, MDN, Wikipedia); otherwise omit "url". Always include a "searchQuery".
+- "resources": 2-4 suggested readings. "type" is one of: documentation, article, book, course, video, tool. Include a "url" ONLY for a stable official page you are certain exists (official documentation, MDN, Wikipedia); otherwise omit "url". Always include a "searchQuery".
 
 Return raw JSON: { "objectives": string[], "keyTopics": string[], "content": Block[], "resources": [ { "title", "type", "url"?, "searchQuery" } ] }`;
 }

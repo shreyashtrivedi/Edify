@@ -58,6 +58,34 @@ describe('POST /api/lessons/:id/generate', () => {
     expect(lesson.resources[0].searchQuery).toBe('react hooks');
   });
 
+  it('drops malformed blocks but still saves the lesson, and repairs small mistakes', async () => {
+    const { lessonId } = await createCourse();
+    const good = mockLessonContent('x').content;
+    const content = [
+      ...good,
+      { type: 'list', items: ['only one item'] }, // too few items → dropped
+      { type: 'callout', variant: 'tip' }, // missing text → dropped
+      { type: 'flashcard', text: 'unknown type' }, // unknown type → dropped
+      { type: 'callout', variant: 'shout', text: 'Bad variant' }, // repaired → "note"
+    ];
+    generateContent.mockResolvedValue(
+      lessonResponse({
+        content,
+        resources: [{ title: 'Copyright basics', type: 'website', searchQuery: 'copyright basics' }],
+      }),
+    );
+
+    const res = await generate(lessonId);
+
+    expect(res.status).toBe(200);
+    expect(generateContent).toHaveBeenCalledTimes(1); // salvaged, no paid retry needed
+    const { content: saved, resources } = res.body.lesson;
+    expect(saved).toHaveLength(good.length + 1);
+    expect(saved.at(-1)).toEqual({ type: 'callout', variant: 'note', text: 'Bad variant' });
+    expect(saved.some((block) => block.type === 'flashcard')).toBe(false);
+    expect(resources[0].type).toBe('article'); // unknown type repaired
+  });
+
   it('sends course, module and sibling lessons as context in the prompt', async () => {
     const { lessonId } = await createCourse();
     generateContent.mockResolvedValue(lessonResponse());
