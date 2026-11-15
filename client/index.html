@@ -8,8 +8,26 @@
       name="description"
       content="Edify turns any topic into a structured, multi-module online course with AI."
     />
-    <meta name="theme-color" content="#4f46e5" />
+    <meta name="theme-color" content="#ffffff" />
     <title>Edify · Text-to-Learn</title>
+    <script>
+      // Apply the saved theme before the first paint, so dark-mode users never see a white
+      // flash while the JS bundle downloads. Same logic as src/utils/theme.js (keep in sync).
+      (function () {
+        try {
+          var saved = localStorage.getItem('edify-theme');
+          var dark =
+            saved === 'dark' ||
+            (saved !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+          if (dark) {
+            document.documentElement.classList.add('dark');
+            document.querySelector('meta[name="theme-color"]').setAttribute('content', '#18181b');
+          }
+        } catch (e) {
+          // Storage blocked: the app falls back to the OS setting once it loads.
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
