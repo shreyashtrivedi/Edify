@@ -37,6 +37,8 @@ export const coursesApi = {
   generate: (body) => api.post('/courses/generate', body).then((res) => res.data.course),
   list: () => api.get('/courses').then((res) => res.data.courses),
   get: (id, options) => api.get(`/courses/${id}`, options).then((res) => res.data.course),
+  /** The course with every generated lesson's full content (for the course PDF). */
+  export: (id) => api.get(`/courses/${id}/export`).then((res) => res.data.course),
   remove: (id) => api.delete(`/courses/${id}`),
 };
 

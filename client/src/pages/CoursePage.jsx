@@ -2,6 +2,7 @@ import { ArrowRight, BookOpen, CircleCheck, Layers, Trash2 } from 'lucide-react'
 import { useState } from 'react';
 import { Link, useNavigate, useOutletContext } from 'react-router';
 import LevelBadge from '../components/course/LevelBadge';
+import DownloadPdfButton from '../components/DownloadPdfButton';
 import { useCourses } from '../hooks/useCourses';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { coursesApi, getErrorMessage } from '../utils/api';
@@ -69,6 +70,23 @@ export default function CoursePage() {
               {readyCount === 0 ? 'Start learning' : 'Continue'} <ArrowRight className="size-4" />
             </Link>
           )}
+          <DownloadPdfButton
+            label="Course PDF"
+            size="md"
+            disabled={readyCount === 0}
+            title={
+              readyCount === 0
+                ? 'Open a lesson first: lessons are written the first time you open them'
+                : 'Download every generated lesson as one PDF'
+            }
+            onDownload={async () => {
+              const [{ downloadCoursePdf }, fullCourse] = await Promise.all([
+                import('../pdf/index.jsx'),
+                coursesApi.export(course._id),
+              ]);
+              await downloadCoursePdf(fullCourse);
+            }}
+          />
           <button
             type="button"
             onClick={handleDelete}
