@@ -21,6 +21,7 @@ function toSummary(course) {
     moduleCount: course.modules.length,
     lessonCount: course.modules.reduce((total, module) => total + module.lessons.length, 0),
     enrichedCount: 0,
+    completedCount: 0,
   };
 }
 

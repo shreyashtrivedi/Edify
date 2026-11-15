@@ -17,8 +17,10 @@ export default function CoursePage() {
 
   const lessons = flattenLessons(course);
   const readyCount = lessons.filter(({ lesson }) => lesson.isEnriched).length;
-  // "Continue" jumps to the first lesson not opened yet (or the first lesson)
-  const next = lessons.find(({ lesson }) => !lesson.isEnriched) ?? lessons[0];
+  const completedCount = lessons.filter(({ lesson }) => lesson.progress?.completed).length;
+  const percent = lessons.length ? Math.round((completedCount / lessons.length) * 100) : 0;
+  // "Continue" jumps to the first lesson not completed yet (or the first lesson)
+  const next = lessons.find(({ lesson }) => !lesson.progress?.completed) ?? lessons[0];
 
   async function handleDelete() {
     if (!window.confirm(`Delete "${course.title}"? This cannot be undone.`)) return;
@@ -57,8 +59,28 @@ export default function CoursePage() {
             <BookOpen className="size-4" aria-hidden="true" /> {lessons.length} lessons
           </span>
           <span className="inline-flex items-center gap-1.5">
-            <CircleCheck className="size-4" aria-hidden="true" /> {readyCount} opened
+            <CircleCheck className="size-4" aria-hidden="true" /> {completedCount} completed
           </span>
+        </div>
+
+        <div className="mt-5 max-w-md">
+          <div className="flex justify-between text-xs font-medium text-muted">
+            <span>Your progress</span>
+            <span>{percent}%</span>
+          </div>
+          <div
+            className="mt-1.5 h-2 overflow-hidden rounded-full bg-subtle"
+            role="progressbar"
+            aria-valuenow={percent}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-label={`${completedCount} of ${lessons.length} lessons completed`}
+          >
+            <div
+              className="h-full rounded-full bg-emerald-500 transition-all"
+              style={{ width: `${percent}%` }}
+            />
+          </div>
         </div>
 
         <div className="mt-6 flex flex-wrap gap-3">
@@ -67,7 +89,12 @@ export default function CoursePage() {
               to={lessonPath(course._id, next.moduleIndex, next.lessonIndex)}
               className="inline-flex items-center gap-2 rounded-xl bg-brand px-5 py-2.5 text-sm font-semibold text-on-brand shadow-sm hover:bg-brand-strong"
             >
-              {readyCount === 0 ? 'Start learning' : 'Continue'} <ArrowRight className="size-4" />
+              {completedCount === 0 && readyCount === 0
+                ? 'Start learning'
+                : completedCount === lessons.length
+                  ? 'Review the course'
+                  : 'Continue'}{' '}
+              <ArrowRight className="size-4" />
             </Link>
           )}
           <DownloadPdfButton
@@ -107,7 +134,9 @@ export default function CoursePage() {
               </span>
               <div className="min-w-0 flex-1">
                 <h2 className="text-lg font-semibold">{module.title}</h2>
-                {module.description && <p className="mt-1 text-sm text-muted">{module.description}</p>}
+                {module.description && (
+                  <p className="mt-1 text-sm text-muted">{module.description}</p>
+                )}
 
                 <ul className="mt-4 divide-y divide-line">
                   {module.lessons.map((lesson, lessonIndex) => (
@@ -120,10 +149,18 @@ export default function CoursePage() {
                           {moduleIndex + 1}.{lessonIndex + 1}
                         </span>
                         <span className="flex-1 group-hover:text-brand">{lesson.title}</span>
-                        {lesson.isEnriched && (
+                        {lesson.progress?.quizAnswers?.some((answer) => answer !== null) && (
+                          <span
+                            className="rounded-full bg-subtle px-2 py-0.5 text-xs text-muted"
+                            title="Quiz score"
+                          >
+                            {lesson.progress.quizScore}/{lesson.progress.quizTotal}
+                          </span>
+                        )}
+                        {lesson.progress?.completed && (
                           <>
                             <CircleCheck className="size-4 text-emerald-500" aria-hidden="true" />
-                            <span className="sr-only">(opened)</span>
+                            <span className="sr-only">(completed)</span>
                           </>
                         )}
                         <ArrowRight className="size-4 text-muted opacity-0 transition-opacity group-hover:opacity-100" />

@@ -28,7 +28,7 @@ explanations, code, a video and a quiz.
    └─ errorHandler                         one JSON error shape for everything
    ▼
  MongoDB (Atlas in prod, in-memory in local dev/tests)
-   courses · modules · lessons · lessonaudios · users · videocaches
+   courses · modules · lessons · lessonaudios · progresses · users · videocaches
 ```
 
 ## 2. Repository layout
@@ -316,6 +316,7 @@ Course 1 ──< Module 1 ──< Lesson          User (one per Auth0 account; C
 | **Module** | `title`, `description`, `course` → Course, `order`, `lessons[]` → Lesson |
 | **User** | `auth0Id` (unique, = token `sub`), `name`, `email`, `picture`, `lastLoginAt` |
 | **LessonAudio** | `lesson` (unique), `course` (cascade delete), `data` (MP3 Buffer), `mimeType` |
+| **Progress** | `user` (Auth0 `sub`), `course`, `lesson`, `completedAt` (null = not completed), `quizAnswers[]` (option per question, null = unanswered), `quizScore`, `quizTotal`; unique `{ user, lesson }` |
 | **VideoCache** | `query` (unique, normalised), `video` (or `null` = nothing suitable), `expiresAt` (TTL index) |
 | **Lesson** | `title`, `module` → Module, `course` → Course, `order`, `objectives[]`, `keyTopics[]`, `content[]` (flexible blocks), `resources[]`, `isEnriched`, `narration?` `{ transcript, durationSeconds, voice, generatedAt }` |
 
@@ -346,8 +347,9 @@ Design notes:
 | POST | `/api/lessons/:id/generate` | `{ force? }`, rate-limited; returns stored content if already generated | `200 { lesson }` |
 | POST | `/api/lessons/:id/narration` | records the Hinglish narration once (rate-limited); `409` if the lesson has no content yet | `200 { narration }` |
 | GET | `/api/lessons/:id/narration/audio` | the MP3 | `200 audio/mpeg` |
+| PUT | `/api/lessons/:id/progress` | `{ completed?, quizAnswers? }`: the server grades the quiz; answering every question completes the lesson | `200 { progress }` |
 | PUT | `/api/users/me` | `{ name?, email?, picture? }`: create/update profile after login | `200 { user }` (with `stats`) |
-| GET | `/api/users/me` | profile + `stats: { courses, lessonsGenerated }` | `200 { user }` |
+| GET | `/api/users/me` | profile + `stats: { courses, lessonsGenerated, lessonsCompleted }` | `200 { user }` |
 
 Every route except `/api/health` requires `Authorization: Bearer <Auth0 access token>`, otherwise **401**.
 
@@ -393,6 +395,26 @@ generating, `markLessonEnriched()` updates that shared copy and the outline's ch
 | Generating a lesson (first open) | "Writing this lesson for you…" banner + skeleton |
 | Any API failure | `ErrorMessage` with the server's friendly message and a *Try again* button |
 | Backend asleep (Render free tier) | Sidebar status shows "Waking up server…" |
+
+### Progress tracking
+
+- **Where it's stored:** a `progresses` collection, one document per *learner* per lesson. Not on the Lesson
+  itself, because progress belongs to whoever is learning: once courses can be shared, each viewer has
+  their own progress on the same lesson.
+- **The server grades quizzes.** The browser sends only which option was picked for each question
+  (`quizAnswers: [1, null, 3, 0]`). The score is computed from the correct answers stored in the lesson.
+  If the browser sent a score, anyone could claim 100% from the dev tools.
+- **Completion:** a "Mark as complete" button, and answering every quiz question completes the lesson
+  automatically. Regenerating a lesson clears its quiz answers (the questions changed) but keeps completion.
+- **Where it shows:** the lesson GET includes `progress` (saved answers are restored, so a returning learner
+  sees their earlier answers and explanations); the course GET adds `progress` to every lesson (outline icons:
+  ✓ completed, ◉ opened, ○ not opened; quiz score badges); the course list adds `completedCount` (progress bars).
+- **No lost answers (`useLessonProgress`):** answering questions quickly fires several saves. They are queued
+  and sent one at a time, because parallel requests can finish out of order and an older answer list could
+  overwrite a newer one on the server. Verified in the browser with random latency: never more than 1 in flight.
+- **Instant UI:** after a save, the shared course copy (`useCourse().updateLessonProgress`) is patched so the
+  outline updates without a refetch; the global course list refreshes only when completion actually changed.
+- `MCQBlock` became a **controlled component**: `LessonRenderer` owns all answers (needed to save and restore them).
 
 ### PDF export (`src/pdf/`)
 
@@ -459,7 +481,8 @@ Secrets live **only** on the server. Anything prefixed `VITE_` ends up in public
 
 - **Tests:** vitest + supertest against an in-memory MongoDB; the Gemini SDK is mocked, so tests
   are fast, free and deterministic. Covered: authentication (missing/forged/expired/wrong-audience
-  tokens), data isolation between users, narration (script + TTS call shape, MP3 output, record-once,
+  tokens), data isolation between users, progress (server-side grading, auto-complete, invalid answers,
+  reset on regenerate), narration (script + TTS call shape, MP3 output, record-once,
   409 before content exists, cleanup on regenerate/delete), YouTube video selection/caching/quota errors (fake YouTube API
   via a stubbed `fetch`), validation, persistence, cascade delete, retry on
   invalid AI output, error mapping, JSON parsing, lesson caching, in-flight dedupe, block
@@ -478,5 +501,6 @@ Secrets live **only** on the server. Anything prefixed `VITE_` ends up in public
 - [x] Phase 5: YouTube videos: real embeddable videos picked by the server, cached in MongoDB, lite embed
 - [x] Phase 6: PDF export: lesson PDF + full-course PDF (cover, clickable contents, bookmarks, answer key)
 - [x] Phase 7: Hinglish audio narration (Gemini script + TTS, MP3, stored once per lesson)
-- [ ] Phase 8: Extras (progress tracking, dark mode, "ask a doubt" tutor, share links)
+- [x] Phase 8a: Progress tracking (completion, saved quiz answers graded on the server, progress bars)
+- [ ] Phase 8b: Extras (dark mode, "ask a doubt" tutor, share links)
 - [ ] Phase 9: Deploy (Render + Vercel), README, demo video

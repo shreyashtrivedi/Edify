@@ -7,14 +7,14 @@
  * YouTube video, and we save it and flip isEnriched → true.
  * Every later visit is served straight from MongoDB.
  */
-import { Course } from '../models/Course.js';
-import { Lesson } from '../models/Lesson.js';
 import { LessonAudio } from '../models/LessonAudio.js';
 import { Module } from '../models/Module.js';
+import { Progress } from '../models/Progress.js';
 import { lessonContentSchema } from '../schemas/lesson.schemas.js';
-import { ApiError } from '../utils/ApiError.js';
 import { generateJSON } from './gemini.service.js';
 import { mockLessonContent } from './mocks/mockAi.js';
+import { findOwnedLesson } from './ownership.service.js';
+import { getLessonProgress } from './progress.service.js';
 import { SYSTEM_INSTRUCTION, generateLessonPrompt } from './prompts.js';
 import { attachVideos } from './youtube.service.js';
 
@@ -25,33 +25,26 @@ import { attachVideos } from './youtube.service.js';
  */
 const inFlight = new Map();
 
-/** Loads a lesson and checks that its course belongs to the user (404 otherwise). */
-export async function findOwnedLesson(lessonId, creator) {
-  const lesson = await Lesson.findById(lessonId);
-  if (!lesson) throw ApiError.notFound('Lesson not found');
-
-  const course = await Course.findOne({ _id: lesson.course, creator }).select('title level').lean();
-  if (!course) throw ApiError.notFound('Lesson not found');
-
-  return { lesson, course };
+/** The lesson plus the user's progress in it (completion, saved quiz answers). */
+async function withProgress(lessonObject, user) {
+  return { ...lessonObject, progress: await getLessonProgress(user, lessonObject._id) };
 }
 
 export async function getLessonForUser(lessonId, creator) {
   const { lesson } = await findOwnedLesson(lessonId, creator);
-  return lesson.toObject();
+  return withProgress(lesson.toObject(), creator);
 }
 
 export async function generateLessonContent(lessonId, creator, { force = false } = {}) {
   const { lesson, course } = await findOwnedLesson(lessonId, creator);
 
-  if (lesson.isEnriched && !force) return lesson.toObject(); // already generated: free & instant
+  if (lesson.isEnriched && !force) return withProgress(lesson.toObject(), creator); // free & instant
 
   const key = String(lesson._id);
-  if (inFlight.has(key)) return inFlight.get(key);
-
-  const job = enrichLesson(lesson, course).finally(() => inFlight.delete(key));
-  inFlight.set(key, job);
-  return job;
+  if (!inFlight.has(key)) {
+    inFlight.set(key, enrichLesson(lesson, course).finally(() => inFlight.delete(key)));
+  }
+  return withProgress(await inFlight.get(key), creator);
 }
 
 async function enrichLesson(lesson, course) {
@@ -84,11 +77,13 @@ async function enrichLesson(lesson, course) {
   lesson.resources = data.resources;
   lesson.isEnriched = true;
 
-  // Regenerated content makes an old narration wrong, so it is removed (it can be recorded again).
+  // Regenerated content makes an old narration and old quiz answers wrong (the questions
+  // changed), so both are reset. Completion is kept: the learner did finish the lesson.
   if (lesson.narration) {
     lesson.narration = undefined;
     await LessonAudio.deleteOne({ lesson: lesson._id });
   }
+  await Progress.updateMany({ lesson: lesson._id }, { $set: { quizAnswers: [], quizScore: 0, quizTotal: 0 } });
   await lesson.save();
 
   return lesson.toObject();

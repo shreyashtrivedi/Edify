@@ -14,7 +14,7 @@ import { narrationScriptSchema } from '../schemas/narration.schemas.js';
 import { ApiError } from '../utils/ApiError.js';
 import { pcmDurationSeconds, pcmToMp3 } from '../utils/audio.js';
 import { generateJSON } from './gemini.service.js';
-import { findOwnedLesson } from './lesson.service.js';
+import { findOwnedLesson } from './ownership.service.js';
 import { mockNarrationScript } from './mocks/mockAi.js';
 import { SYSTEM_INSTRUCTION, generateNarrationPrompt } from './prompts.js';
 import { synthesizeSpeech } from './tts.service.js';

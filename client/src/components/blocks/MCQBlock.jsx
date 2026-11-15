@@ -1,20 +1,28 @@
 import { CircleCheck, CircleX, RotateCcw } from 'lucide-react';
-import { useState } from 'react';
 import InlineText from './InlineText';
 
 /**
  * Interactive multiple-choice question. The learner picks an option and immediately
  * sees whether it's right, which option was correct, and an explanation.
+ *
+ * Controlled component: the chosen option (`selected`, null = unanswered) is owned by
+ * LessonRenderer, which saves all answers so they are still there on the next visit.
  */
-export default function MCQBlock({ question, options, answer, explanation, number, total, onAnswer }) {
-  const [selected, setSelected] = useState(null);
+export default function MCQBlock({
+  question,
+  options,
+  answer,
+  explanation,
+  number,
+  total,
+  selected = null,
+  onSelect,
+}) {
   const answered = selected !== null;
   const isCorrect = selected === answer;
 
   function choose(index) {
-    if (answered) return;
-    setSelected(index);
-    onAnswer?.(index === answer);
+    if (!answered) onSelect?.(index);
   }
 
   function optionClass(index) {
@@ -55,7 +63,9 @@ export default function MCQBlock({ question, options, answer, explanation, numbe
               <InlineText text={option} />
             </span>
             {answered && index === answer && <CircleCheck className="size-5 text-emerald-600" />}
-            {answered && index === selected && !isCorrect && <CircleX className="size-5 text-red-500" />}
+            {answered && index === selected && !isCorrect && (
+              <CircleX className="size-5 text-red-500" />
+            )}
           </button>
         ))}
       </div>
@@ -72,7 +82,7 @@ export default function MCQBlock({ question, options, answer, explanation, numbe
           )}
           <button
             type="button"
-            onClick={() => setSelected(null)}
+            onClick={() => onSelect?.(null)}
             className="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold text-muted hover:text-ink"
           >
             <RotateCcw className="size-3.5" aria-hidden="true" /> Try again

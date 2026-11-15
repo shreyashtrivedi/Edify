@@ -46,6 +46,8 @@ export const lessonsApi = {
   get: (id, options) => api.get(`/lessons/${id}`, options).then((res) => res.data.lesson),
   generate: (id, { force = false } = {}, options) =>
     api.post(`/lessons/${id}/generate`, { force }, options).then((res) => res.data.lesson),
+  /** Saves completion and/or quiz answers: { completed?, quizAnswers? }. The server grades the quiz. */
+  saveProgress: (id, body) => api.put(`/lessons/${id}/progress`, body).then((res) => res.data.progress),
   /** Records the Hinglish narration (once; later calls return the stored one). */
   narrate: (id) => api.post(`/lessons/${id}/narration`).then((res) => res.data.narration),
   /** The narration MP3 as a Blob. Fetched through axios so the auth token is sent. */

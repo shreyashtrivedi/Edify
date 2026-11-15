@@ -4,7 +4,8 @@ import { coursePath } from '../../utils/paths';
 import LevelBadge from './LevelBadge';
 
 export default function CourseCard({ course }) {
-  const progress = course.lessonCount ? Math.round((course.enrichedCount / course.lessonCount) * 100) : 0;
+  const completed = course.completedCount ?? 0;
+  const progress = course.lessonCount ? Math.round((completed / course.lessonCount) * 100) : 0;
 
   return (
     <Link
@@ -12,7 +13,9 @@ export default function CourseCard({ course }) {
       className="group flex flex-col rounded-2xl border border-line bg-surface p-5 transition-all hover:-translate-y-0.5 hover:border-brand/40 hover:shadow-md"
     >
       <div className="flex items-start justify-between gap-3">
-        <h3 className="line-clamp-2 font-semibold leading-snug group-hover:text-brand">{course.title}</h3>
+        <h3 className="line-clamp-2 font-semibold leading-snug group-hover:text-brand">
+          {course.title}
+        </h3>
         <LevelBadge level={course.level} />
       </div>
       <p className="mt-2 line-clamp-2 text-sm text-muted">{course.description}</p>
@@ -27,9 +30,14 @@ export default function CourseCard({ course }) {
       </div>
       <div
         className="mt-3 h-1 overflow-hidden rounded-full bg-subtle"
-        title={`${course.enrichedCount} of ${course.lessonCount} lessons opened`}
+        role="progressbar"
+        aria-valuenow={progress}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-label={`${completed} of ${course.lessonCount} lessons completed`}
+        title={`${completed} of ${course.lessonCount} lessons completed`}
       >
-        <div className="h-full rounded-full bg-brand" style={{ width: `${progress}%` }} />
+        <div className="h-full rounded-full bg-emerald-500" style={{ width: `${progress}%` }} />
       </div>
     </Link>
   );

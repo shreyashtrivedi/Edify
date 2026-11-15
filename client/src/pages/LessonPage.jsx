@@ -11,16 +11,20 @@ import { useEffect } from 'react';
 import { Link, useOutletContext, useParams } from 'react-router';
 import CourseOutline from '../components/course/CourseOutline';
 import DownloadPdfButton from '../components/DownloadPdfButton';
+import LessonCompletion from '../components/LessonCompletion';
 import LessonRenderer from '../components/LessonRenderer';
 import NarrationPlayer from '../components/NarrationPlayer';
 import ErrorMessage from '../components/ui/ErrorMessage';
 import { LessonSkeleton } from '../components/ui/Skeleton';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
+import { useCourses } from '../hooks/useCourses';
 import { useLesson } from '../hooks/useLesson';
+import { useLessonProgress } from '../hooks/useLessonProgress';
 import { coursePath, flattenLessons, lessonPath, webSearchUrl } from '../utils/paths';
 
 export default function LessonPage() {
-  const { course, markLessonEnriched } = useOutletContext();
+  const { course, markLessonEnriched, updateLessonProgress } = useOutletContext();
+  const { refresh: refreshCourseList } = useCourses();
   const params = useParams();
   const moduleIndex = Number(params.moduleIndex) - 1; // URLs are 1-based
   const lessonIndex = Number(params.lessonIndex) - 1;
@@ -32,6 +36,19 @@ export default function LessonPage() {
     onGenerated: markLessonEnriched,
   });
   useDocumentTitle(outlineLesson?.title);
+
+  const {
+    progress,
+    saving,
+    error: progressError,
+    save: saveProgress,
+  } = useLessonProgress(lesson, {
+    onSaved: (saved) => {
+      const wasCompleted = Boolean(outlineLesson?.progress?.completed);
+      updateLessonProgress(outlineLesson._id, saved); // outline + course page update instantly
+      if (saved.completed !== wasCompleted) refreshCourseList(); // course cards show completed counts
+    },
+  });
 
   useEffect(() => window.scrollTo(0, 0), [outlineLesson?._id]);
 
@@ -146,7 +163,12 @@ export default function LessonPage() {
               />
 
               {/* key forces a fresh renderer (and quiz score) when the content is regenerated */}
-              <LessonRenderer key={lesson.updatedAt} content={lesson.content} />
+              <LessonRenderer
+                key={lesson.updatedAt}
+                content={lesson.content}
+                initialAnswers={lesson.progress?.quizAnswers}
+                onAnswersChange={(quizAnswers) => saveProgress({ quizAnswers })}
+              />
 
               {lesson.keyTopics?.length > 0 && (
                 <section className="mt-12">
@@ -196,6 +218,13 @@ export default function LessonPage() {
                   </ul>
                 </section>
               )}
+
+              <LessonCompletion
+                progress={progress}
+                saving={saving}
+                error={progressError}
+                onToggle={(completed) => saveProgress({ completed })}
+              />
             </>
           )}
         </div>

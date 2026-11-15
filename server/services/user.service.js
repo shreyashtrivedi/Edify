@@ -3,6 +3,7 @@
  */
 import { Course } from '../models/Course.js';
 import { Lesson } from '../models/Lesson.js';
+import { Progress } from '../models/Progress.js';
 import { User } from '../models/User.js';
 
 /** Creates the profile on first login, updates it on later logins (an "upsert"). */
@@ -24,9 +25,9 @@ export async function getProfile(auth0Id) {
 /** Activity counters shown on the profile. */
 async function getStats(auth0Id) {
   const courseIds = await Course.find({ creator: auth0Id }).distinct('_id');
-  const lessonsGenerated = await Lesson.countDocuments({
-    course: { $in: courseIds },
-    isEnriched: true,
-  });
-  return { courses: courseIds.length, lessonsGenerated };
+  const [lessonsGenerated, lessonsCompleted] = await Promise.all([
+    Lesson.countDocuments({ course: { $in: courseIds }, isEnriched: true }),
+    Progress.countDocuments({ user: auth0Id, completedAt: { $ne: null } }),
+  ]);
+  return { courses: courseIds.length, lessonsGenerated, lessonsCompleted };
 }

@@ -1,11 +1,31 @@
-import { CircleCheck, Circle } from 'lucide-react';
+import { Circle, CircleCheck, CircleDot } from 'lucide-react';
 import { NavLink } from 'react-router';
 import { lessonPath } from '../../utils/paths';
 
 /**
- * Compact table of contents shown beside a lesson. The current lesson is highlighted;
- * a check mark means the lesson's content has already been generated.
+ * Compact table of contents shown beside a lesson. The current lesson is highlighted.
+ * Icons: green check = completed, dot = opened (content generated), empty circle = not opened.
  */
+function LessonStatusIcon({ lesson }) {
+  if (lesson.progress?.completed) {
+    return (
+      <>
+        <CircleCheck className="mt-0.5 size-3.5 shrink-0 text-emerald-500" aria-hidden="true" />
+        <span className="sr-only">(completed)</span>
+      </>
+    );
+  }
+  if (lesson.isEnriched) {
+    return (
+      <>
+        <CircleDot className="mt-0.5 size-3.5 shrink-0 text-brand/70" aria-hidden="true" />
+        <span className="sr-only">(opened)</span>
+      </>
+    );
+  }
+  return <Circle className="mt-0.5 size-3.5 shrink-0 opacity-40" aria-hidden="true" />;
+}
+
 export default function CourseOutline({ course }) {
   return (
     <nav aria-label="Course outline" className="space-y-5">
@@ -21,18 +41,13 @@ export default function CourseOutline({ course }) {
                   to={lessonPath(course._id, moduleIndex, lessonIndex)}
                   className={({ isActive }) =>
                     `flex items-start gap-2 rounded-md px-2 py-1.5 text-sm leading-snug transition-colors ${
-                      isActive ? 'bg-brand-soft font-medium text-brand' : 'text-muted hover:bg-subtle hover:text-ink'
+                      isActive
+                        ? 'bg-brand-soft font-medium text-brand'
+                        : 'text-muted hover:bg-subtle hover:text-ink'
                     }`
                   }
                 >
-                  {lesson.isEnriched ? (
-                    <>
-                      <CircleCheck className="mt-0.5 size-3.5 shrink-0 text-emerald-500" aria-hidden="true" />
-                      <span className="sr-only">(ready)</span>
-                    </>
-                  ) : (
-                    <Circle className="mt-0.5 size-3.5 shrink-0 opacity-40" aria-hidden="true" />
-                  )}
+                  <LessonStatusIcon lesson={lesson} />
                   {lesson.title}
                 </NavLink>
               </li>

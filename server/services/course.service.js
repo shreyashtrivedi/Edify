@@ -6,10 +6,12 @@ import { Course } from '../models/Course.js';
 import { Lesson } from '../models/Lesson.js';
 import { LessonAudio } from '../models/LessonAudio.js';
 import { Module } from '../models/Module.js';
+import { Progress } from '../models/Progress.js';
 import { courseOutlineSchema } from '../schemas/course.schemas.js';
 import { ApiError } from '../utils/ApiError.js';
 import { generateJSON } from './gemini.service.js';
 import { mockCourseOutline } from './mocks/mockAi.js';
+import { getCompletedCounts, getCourseProgressMap, toProgressView } from './progress.service.js';
 import { SYSTEM_INSTRUCTION, generateCoursePrompt } from './prompts.js';
 
 /**
@@ -100,6 +102,15 @@ export async function getCourseForUser(courseId, creator) {
     .lean();
 
   if (!course) throw ApiError.notFound('Course not found');
+
+  // Each lesson gets the user's progress, so the outline can show check marks and scores.
+  const progress = await getCourseProgressMap(creator, course._id);
+  for (const module of course.modules) {
+    module.lessons = module.lessons.map((lesson) => ({
+      ...lesson,
+      progress: progress.get(String(lesson._id)) ?? toProgressView(null),
+    }));
+  }
   return course;
 }
 
@@ -145,12 +156,14 @@ export async function listCoursesForUser(creator) {
     },
   ]);
   const statsByCourse = new Map(stats.map((s) => [String(s._id), s]));
+  const completed = await getCompletedCounts(creator, courses.map((course) => course._id));
 
   return courses.map(({ modules, ...course }) => ({
     ...course,
     moduleCount: modules.length,
     lessonCount: statsByCourse.get(String(course._id))?.lessonCount ?? 0,
     enrichedCount: statsByCourse.get(String(course._id))?.enrichedCount ?? 0,
+    completedCount: completed.get(String(course._id)) ?? 0,
   }));
 }
 
@@ -165,6 +178,7 @@ async function deleteCourseTree(courseId) {
   await Promise.all([
     Lesson.deleteMany({ course: courseId }),
     LessonAudio.deleteMany({ course: courseId }),
+    Progress.deleteMany({ course: courseId }),
     Module.deleteMany({ course: courseId }),
     Course.deleteOne({ _id: courseId }),
   ]);
