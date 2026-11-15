@@ -1,7 +1,7 @@
 import * as lessonService from '../services/lesson.service.js';
 
-// Until authentication is added (Milestone 4), every course belongs to one shared user.
-const getUserId = (req) => req.user?.sub ?? 'anonymous';
+// requireAuth has verified the token, so req.user.sub is the logged-in user's Auth0 id.
+const getUserId = (req) => req.user.sub;
 
 /** GET /api/lessons/:id  (content may be empty if not generated yet: see isEnriched) */
 export async function getLesson(req, res) {

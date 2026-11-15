@@ -9,10 +9,16 @@ import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import { env } from './config/env.js';
-import apiRoutes from './routes/index.js';
+import { createRequireAuth } from './middlewares/auth.js';
 import { errorHandler, notFound } from './middlewares/errorHandler.js';
+import { createApiRouter } from './routes/index.js';
 
-export function createApp() {
+/**
+ * @param {object} [deps]
+ * @param {Function} [deps.requireAuth] Auth middleware. Defaults to real Auth0 verification;
+ *   tests pass one that accepts tokens signed with a local test key (dependency injection).
+ */
+export function createApp({ requireAuth = createRequireAuth() } = {}) {
   const app = express();
 
   // Render/Vercel sit behind a proxy; this makes req.ip the real client IP (needed for rate limiting).
@@ -27,7 +33,7 @@ export function createApp() {
     res.json({ name: 'Edify API', status: 'running', health: '/api/health' });
   });
 
-  app.use('/api', apiRoutes);
+  app.use('/api', createApiRouter({ requireAuth }));
 
   app.use(notFound);
   app.use(errorHandler);

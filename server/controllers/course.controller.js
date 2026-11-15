@@ -4,8 +4,8 @@
  */
 import * as courseService from '../services/course.service.js';
 
-// Until authentication is added (Milestone 4), every course belongs to one shared user.
-const getUserId = (req) => req.user?.sub ?? 'anonymous';
+// requireAuth has verified the token, so req.user.sub is the logged-in user's Auth0 id.
+const getUserId = (req) => req.user.sub;
 
 /** POST /api/courses/generate   body: { prompt, level?, moduleCount? } */
 export async function generateCourse(req, res) {

@@ -37,10 +37,20 @@ const envSchema = z
       .enum(['true', 'false'])
       .default('false')
       .transform((value) => value === 'true'),
+
+    // Authentication (Auth0). The domain is accepted with or without "https://".
+    AUTH0_DOMAIN: optionalString.transform((domain) =>
+      domain?.replace(/^https?:\/\//, '').replace(/\/+$/, ''),
+    ),
+    AUTH0_AUDIENCE: optionalString, // the API Identifier, e.g. https://edify-api
   })
   .refine((data) => data.NODE_ENV !== 'production' || data.MONGO_URI, {
     message: 'MONGO_URI is required in production',
     path: ['MONGO_URI'],
+  })
+  .refine((data) => data.NODE_ENV !== 'production' || (data.AUTH0_DOMAIN && data.AUTH0_AUDIENCE), {
+    message: 'AUTH0_DOMAIN and AUTH0_AUDIENCE are required in production',
+    path: ['AUTH0_DOMAIN'],
   })
   .refine((data) => data.NODE_ENV !== 'production' || !data.AI_MOCK, {
     message: 'AI_MOCK cannot be enabled in production',
