@@ -6,7 +6,7 @@ import { VIDEOS, quotaExceededFetch, youtubeFetch } from './helpers/youtube.js';
 vi.hoisted(() => {
   process.env.YOUTUBE_API_KEY = 'test-youtube-key';
 });
-const { attachVideos, findVideo, parseDuration, pickBestVideo } = await import(
+const { attachVideos, decodeEntities, findVideo, parseDuration, pickBestVideo } = await import(
   '../services/youtube.service.js'
 );
 const { VideoCache } = await import('../models/VideoCache.js');
@@ -28,6 +28,12 @@ describe('parseDuration', () => {
     expect(parseDuration('P1DT1S')).toBe(86401);
     expect(parseDuration('')).toBe(0);
     expect(parseDuration('garbage')).toBe(0);
+  });
+});
+
+describe('decodeEntities', () => {
+  it('turns the HTML-escaped titles from search.list into plain text', () => {
+    expect(decodeEntities('Don&#39;t Use &quot;var&quot; &amp; &lt;div&gt;')).toBe(`Don't Use "var" & <div>`);
   });
 });
 

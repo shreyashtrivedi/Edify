@@ -40,6 +40,14 @@ export function parseDuration(iso = '') {
   return days * 86400 + hours * 3600 + minutes * 60 + seconds;
 }
 
+/**
+ * search.list returns titles HTML-escaped ("Don&#39;t &amp; Do"). React would show those
+ * characters literally, so decode them to plain text once, here.
+ */
+const ENTITIES = { '&amp;': '&', '&quot;': '"', '&#39;': "'", '&lt;': '<', '&gt;': '>' };
+export const decodeEntities = (text = '') =>
+  text.replace(/&(amp|quot|#39|lt|gt);/g, (entity) => ENTITIES[entity]);
+
 async function callYouTube(endpoint, params) {
   const url = new URL(`${API_URL}/${endpoint}`);
   url.search = new URLSearchParams({ ...params, key: env.YOUTUBE_API_KEY });
@@ -95,8 +103,8 @@ async function searchYouTube(query) {
       const detail = detailsById.get(item.id.videoId);
       return {
         videoId: item.id.videoId,
-        title: item.snippet.title,
-        channel: item.snippet.channelTitle,
+        title: decodeEntities(item.snippet.title),
+        channel: decodeEntities(item.snippet.channelTitle),
         thumbnail: item.snippet.thumbnails?.high?.url ?? item.snippet.thumbnails?.default?.url,
         durationSeconds: parseDuration(detail.contentDetails?.duration),
         views: Number(detail.statistics?.viewCount ?? 0),
@@ -118,7 +126,11 @@ export async function findVideo(rawQuery) {
   if (cached) return cached.video;
 
   try {
+    const startedAt = Date.now();
     const video = await searchYouTube(query);
+    if (!env.isTest) {
+      console.log(`🎬 YouTube "${query}" → ${video ? `"${video.title}"` : 'no suitable video'} in ${Date.now() - startedAt}ms`);
+    }
     const ttl = video ? FOUND_TTL_MS : NOT_FOUND_TTL_MS;
     await VideoCache.updateOne(
       { query },
