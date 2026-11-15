@@ -116,6 +116,23 @@ describe('reading and deleting courses', () => {
     expect((await api.get('/api/courses/507f1f77bcf86cd799439011')).status).toBe(404);
   });
 
+  it('exports the full course with lesson content for the PDF', async () => {
+    mockOutlineResponse();
+    const created = await generate({ prompt: 'Intro to React Hooks' });
+    const firstLesson = created.body.course.modules[0].lessons[0];
+    await Lesson.updateOne(
+      { _id: firstLesson._id },
+      { isEnriched: true, objectives: ['Explain hooks', 'Use state'], content: [{ type: 'paragraph', text: 'Hi' }] },
+    );
+
+    const res = await api.get(`/api/courses/${created.body.course._id}/export`);
+
+    expect(res.status).toBe(200);
+    const [lesson, notYet] = res.body.course.modules[0].lessons;
+    expect(lesson).toMatchObject({ isEnriched: true, content: [{ type: 'paragraph', text: 'Hi' }] });
+    expect(notYet).toMatchObject({ isEnriched: false, content: [] });
+  });
+
   it('deletes a course together with its modules and lessons', async () => {
     mockOutlineResponse();
     const created = await generate({ prompt: 'Intro to React Hooks' });

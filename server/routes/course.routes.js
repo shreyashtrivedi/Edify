@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import {
   deleteCourse,
+  exportCourse,
   generateCourse,
   getCourse,
   listCourses,
@@ -14,6 +15,7 @@ const router = Router();
 router.post('/generate', generationLimiter, validate({ body: generateCourseSchema }), generateCourse);
 router.get('/', listCourses);
 router.get('/:id', validateObjectId('id'), getCourse);
+router.get('/:id/export', validateObjectId('id'), exportCourse);
 router.delete('/:id', validateObjectId('id'), deleteCourse);
 
 export default router;
