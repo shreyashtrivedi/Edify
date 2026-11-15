@@ -63,6 +63,7 @@ describe('data isolation between users', () => {
 
     // 404 rather than 403, so Bob can't even learn that the course exists.
     expect((await request(app).get(`/api/courses/${course._id}`).set(bob)).status).toBe(404);
+    expect((await request(app).get(`/api/courses/${course._id}/export`).set(bob)).status).toBe(404);
     expect((await request(app).delete(`/api/courses/${course._id}`).set(bob)).status).toBe(404);
     expect((await request(app).get(`/api/lessons/${lessonId}`).set(bob)).status).toBe(404);
     expect((await request(app).post(`/api/lessons/${lessonId}/generate`).set(bob)).status).toBe(404);

@@ -37,6 +37,7 @@ Edify/
 ├── client/                    React app (deployed to Vercel)
 │   └── src/
 │       ├── auth/              AuthProvider (Auth0 + token → axios), RequireAuth (route guard), config
+│       ├── pdf/               PDF export: LessonSection, documents (lesson + course), styles, text sanitising
 │       ├── components/
 │       │   ├── home/                Landing (logged-out home page)
 │       │   ├── LessonRenderer.jsx   content[] → block components
@@ -47,7 +48,7 @@ Edify/
 │       ├── pages/             HomePage, CourseLayout, CoursePage, LessonPage, NotFoundPage
 │       ├── hooks/             useCourse, useLesson, useCourses, useServerStatus, useDocumentTitle
 │       ├── context/           CoursesProvider (global course list)
-│       ├── utils/             api.js (axios + endpoint helpers), paths.js (URL builders)
+│       ├── utils/             api.js (axios + endpoint helpers), paths.js (URL builders), inlineFormat.js, format.js
 │       ├── App.jsx            layout (sidebar + <Outlet/>)
 │       └── main.jsx           providers + routes
 ├── server/                    Express API (deployed to Render)
@@ -307,6 +308,7 @@ Design notes:
 | POST | `/api/courses/generate` | `{ prompt, level?, moduleCount? }`, rate-limited | `201 { course }` |
 | GET | `/api/courses` | user's courses + `moduleCount`, `lessonCount`, `enrichedCount` | `200 { courses }` |
 | GET | `/api/courses/:id` | course + modules + lesson titles (no content) | `200 { course }` |
+| GET | `/api/courses/:id/export` | course + every lesson **with** content (for the course PDF) | `200 { course }` |
 | DELETE | `/api/courses/:id` | cascades to modules + lessons | `204` |
 | GET | `/api/lessons/:id` | one lesson (empty `content` until generated) | `200 { lesson }` |
 | POST | `/api/lessons/:id/generate` | `{ force? }`, rate-limited; returns stored content if already generated | `200 { lesson }` |
@@ -358,6 +360,39 @@ generating, `markLessonEnriched()` updates that shared copy and the outline's ch
 | Any API failure | `ErrorMessage` with the server's friendly message and a *Try again* button |
 | Backend asleep (Render free tier) | Sidebar status shows "Waking up server…" |
 
+### PDF export (`src/pdf/`)
+
+Two exports: **Download PDF** on a lesson, and **Course PDF** on the course page (a small book: cover,
+clickable contents, every generated lesson on its own pages, PDF bookmarks).
+
+**Why `@react-pdf/renderer` (real PDF) instead of screenshotting the page (html2canvas + jsPDF)?**
+
+| | Screenshot → PDF | `@react-pdf/renderer` (chosen) |
+|---|---|---|
+| Text | an image: blurry when zoomed, not selectable or searchable | real text: sharp, selectable, searchable |
+| Page breaks | cut through lines and code | layout engine moves headings/boxes to the next page |
+| Size | MBs (images) | ~10 KB per lesson |
+| Links | not clickable | videos, readings and the contents page are clickable |
+
+The PDF is built from the **same content blocks** as the web page (`LessonSection.jsx` mirrors
+`LessonRenderer`) and the same inline parser (`utils/inlineFormat.js`), so web and PDF never disagree.
+It is designed for paper: quiz questions without answers + an **answer key**, videos as links.
+
+**Performance:** the PDF library is ~450 kB gzipped, so it is loaded with a dynamic `import()` only
+when a download button is clicked (a separate chunk). Rendering happens in the browser (~200 ms for
+a course), so the server spends nothing on it. The course PDF needs every lesson's content, which the
+`/export` endpoint returns in one request instead of one request per lesson.
+
+**Problems solved while building it (react-pdf quirks):**
+- **Fonts:** the built-in PDF fonts (Helvetica, Courier) need no download but only cover Western
+  characters. `pdf/text.js` turns `→` into `->`, `π` into `pi`, `≤` into `<=` and drops emoji, so AI text
+  never prints as garbage.
+- **Infinite layout loop:** a `break` (start a new page) on a View nested inside another View made
+  the layout engine loop forever and crash the tab. Each lesson is now a direct child of the Page.
+- **Code indentation:** react-pdf collapses leading spaces; they are converted to non-breaking spaces.
+- **Page numbers:** text filled in after layout (`render` prop) is mis-placed when positioned with
+  `bottom`, so it is positioned from the top of the A4 page instead.
+
 ### Security in rendering
 
 **Videos** use a "lite embed": only the thumbnail is shown until the learner clicks play, then a
@@ -405,6 +440,7 @@ Secrets live **only** on the server. Anything prefixed `VITE_` ends up in public
 - [x] Phase 3: On-demand lesson generation (objectives, blocks, 4–5 MCQs, readings)
 - [x] Phase 4: Auth0 login + per-user courses, user profiles, per-user rate limits
 - [x] Phase 5: YouTube videos: real embeddable videos picked by the server, cached in MongoDB, lite embed
-- [ ] Phase 6: PDF export · Phase 7: Hinglish TTS
+- [x] Phase 6: PDF export: lesson PDF + full-course PDF (cover, clickable contents, bookmarks, answer key)
+- [ ] Phase 7: Hinglish TTS
 - [ ] Phase 8: Extras (progress tracking, dark mode, "ask a doubt" tutor, share links)
 - [ ] Phase 9: Deploy (Render + Vercel), README, demo video

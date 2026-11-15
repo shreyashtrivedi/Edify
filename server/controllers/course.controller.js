@@ -31,6 +31,12 @@ export async function getCourse(req, res) {
   res.json({ course });
 }
 
+/** GET /api/courses/:id/export  (full content of every generated lesson, for the PDF) */
+export async function exportCourse(req, res) {
+  const course = await courseService.getCourseExportForUser(req.params.id, getUserId(req));
+  res.json({ course });
+}
+
 /** DELETE /api/courses/:id */
 export async function deleteCourse(req, res) {
   await courseService.deleteCourseForUser(req.params.id, getUserId(req));

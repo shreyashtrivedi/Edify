@@ -2,6 +2,7 @@ import { ArrowLeft, ArrowRight, ExternalLink, RefreshCw, Search, Sparkles, Targe
 import { useEffect } from 'react';
 import { Link, useOutletContext, useParams } from 'react-router';
 import CourseOutline from '../components/course/CourseOutline';
+import DownloadPdfButton from '../components/DownloadPdfButton';
 import LessonRenderer from '../components/LessonRenderer';
 import ErrorMessage from '../components/ui/ErrorMessage';
 import { LessonSkeleton } from '../components/ui/Skeleton';
@@ -61,14 +62,23 @@ export default function LessonPage() {
             {outlineLesson.title}
           </h1>
           {isReady && (
-            <button
-              type="button"
-              onClick={regenerate}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-line px-3 py-1.5 text-sm text-muted hover:border-brand hover:text-brand"
-              title="Ask the AI to write this lesson again"
-            >
-              <RefreshCw className="size-4" aria-hidden="true" /> Regenerate
-            </button>
+            <div className="flex flex-wrap items-start gap-2">
+              <DownloadPdfButton
+                onDownload={async () => {
+                  // Load the PDF code only now, on demand (it is a separate ~500 kB chunk)
+                  const { downloadLessonPdf } = await import('../pdf/index.jsx');
+                  await downloadLessonPdf({ course, moduleIndex, lessonIndex, lesson });
+                }}
+              />
+              <button
+                type="button"
+                onClick={regenerate}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-line px-3 py-1.5 text-sm text-muted hover:border-brand hover:text-brand"
+                title="Ask the AI to write this lesson again"
+              >
+                <RefreshCw className="size-4" aria-hidden="true" /> Regenerate
+              </button>
+            </div>
           )}
         </div>
         <p className="mt-2 text-sm text-muted">

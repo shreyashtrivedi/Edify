@@ -103,6 +103,27 @@ export async function getCourseForUser(courseId, creator) {
 }
 
 /**
+ * The whole course INCLUDING every lesson's content, in one request (for the course PDF).
+ * Lessons that were never opened have no content yet; the PDF lists them as "not generated".
+ */
+export async function getCourseExportForUser(courseId, creator) {
+  const course = await Course.findOne({ _id: courseId, creator })
+    .select('title description tags level modules createdAt')
+    .populate({
+      path: 'modules',
+      select: 'title description order lessons',
+      populate: {
+        path: 'lessons',
+        select: 'title order isEnriched objectives keyTopics content resources',
+      },
+    })
+    .lean();
+
+  if (!course) throw ApiError.notFound('Course not found');
+  return course;
+}
+
+/**
  * The user's courses, newest first, with module/lesson counts and how many
  * lessons have been generated so far (useful for progress indicators).
  */

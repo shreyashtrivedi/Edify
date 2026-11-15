@@ -1,14 +1,7 @@
 import { ExternalLink, Play, Search } from 'lucide-react';
 import { useState } from 'react';
+import { formatDuration } from '../../utils/format';
 import { youtubeSearchUrl } from '../../utils/paths';
-
-/** 780 → "13:00", 3730 → "1:02:10" */
-function formatDuration(totalSeconds = 0) {
-  const hours = Math.floor(totalSeconds / 3600);
-  const minutes = Math.floor((totalSeconds % 3600) / 60);
-  const seconds = String(totalSeconds % 60).padStart(2, '0');
-  return hours ? `${hours}:${String(minutes).padStart(2, '0')}:${seconds}` : `${minutes}:${seconds}`;
-}
 
 // YouTube ids are exactly 11 URL-safe characters. Checking this means nothing unexpected
 // can ever be placed into the iframe's URL.
