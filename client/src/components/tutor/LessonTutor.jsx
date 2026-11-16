@@ -31,10 +31,11 @@ export default function LessonTutor({ lessonId, lessonTitle }) {
         onClick={openPanel}
         aria-expanded={open}
         aria-controls={panelId}
-        className="fixed right-4 bottom-4 z-30 inline-flex items-center gap-2 rounded-full bg-brand py-3 pr-5 pl-4 text-sm font-semibold text-on-brand shadow-lg shadow-brand/25 transition-colors hover:bg-brand-strong sm:right-6 sm:bottom-6"
+        // Phones: a round icon button that covers less of the lesson (the label stays for screen readers)
+        className="fixed right-4 bottom-4 z-30 inline-flex items-center gap-2 rounded-full bg-brand p-3.5 text-sm font-semibold text-on-brand shadow-lg shadow-brand/25 transition-colors hover:bg-brand-strong sm:right-6 sm:bottom-6 sm:py-3 sm:pr-5 sm:pl-4"
       >
         <MessageCircleQuestionMark className="size-5" aria-hidden="true" />
-        Ask a doubt
+        <span className="max-sm:sr-only">Ask a doubt</span>
         {tutor.asking && !open && (
           // An answer is still being written while the panel is closed
           <span
