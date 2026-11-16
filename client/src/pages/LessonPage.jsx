@@ -51,7 +51,11 @@ export default function LessonPage() {
     },
   });
 
-  useEffect(() => window.scrollTo(0, 0), [outlineLesson?._id]);
+  // Braces matter: an effect may only return a cleanup function, and in current Chrome
+  // window.scrollTo() returns a Promise, which React would try to call (and crash) on cleanup.
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [outlineLesson?._id]);
 
   if (!outlineLesson) {
     return (

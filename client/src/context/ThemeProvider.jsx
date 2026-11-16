@@ -33,7 +33,9 @@ export function ThemeProvider({ children }) {
   }, []);
 
   // Layout effect: runs before the browser paints, so a switch never shows a half-themed frame.
-  useLayoutEffect(() => applyTheme(resolvedTheme), [resolvedTheme]);
+  useLayoutEffect(() => {
+    applyTheme(resolvedTheme);
+  }, [resolvedTheme]);
 
   const setTheme = useCallback((next) => {
     storeTheme(next);
