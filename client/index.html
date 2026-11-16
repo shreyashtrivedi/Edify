@@ -10,6 +10,27 @@
     />
     <meta name="theme-color" content="#ffffff" />
     <title>Edify · Text-to-Learn</title>
+
+    <!--
+      Link previews (WhatsApp, LinkedIn, Slack, X...). Those apps read these tags without running
+      JavaScript, so they are the same for every page. The image URL must be absolute:
+      %VITE_SITE_URL% is replaced at build time (set it in Vercel, e.g. https://edify.vercel.app).
+    -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Edify" />
+    <meta property="og:title" content="Edify: turn any topic into a complete course" />
+    <meta
+      property="og:description"
+      content="Modules, lessons, code examples, videos, quizzes and a tutor for your doubts. Written by AI."
+    />
+    <meta property="og:image" content="%VITE_SITE_URL%/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta
+      property="og:image:alt"
+      content="Edify: turn any topic into a complete course, with a sample course card"
+    />
+    <meta name="twitter:card" content="summary_large_image" />
     <script>
       // Apply the saved theme before the first paint, so dark-mode users never see a white
       // flash while the JS bundle downloads. Same logic as src/utils/theme.js (keep in sync).
