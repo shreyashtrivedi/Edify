@@ -120,7 +120,14 @@ export async function getCourseForUser(courseId, creator) {
  * Lessons that were never opened have no content yet; the PDF lists them as "not generated".
  */
 export async function getCourseExportForUser(courseId, creator) {
-  const course = await Course.findOne({ _id: courseId, creator })
+  const course = await findCourseExport({ _id: courseId, creator });
+  if (!course) throw ApiError.notFound('Course not found');
+  return course;
+}
+
+/** The export shape for any course filter (also used for shared courses). null if not found. */
+export function findCourseExport(filter) {
+  return Course.findOne(filter)
     .select('title description tags level modules createdAt')
     .populate({
       path: 'modules',
@@ -131,9 +138,6 @@ export async function getCourseExportForUser(courseId, creator) {
       },
     })
     .lean();
-
-  if (!course) throw ApiError.notFound('Course not found');
-  return course;
 }
 
 /**
@@ -143,7 +147,7 @@ export async function getCourseExportForUser(courseId, creator) {
 export async function listCoursesForUser(creator) {
   const courses = await Course.find({ creator })
     .sort({ createdAt: -1 })
-    .select('title description tags level modules createdAt')
+    .select('title description tags level modules createdAt shareToken')
     .lean();
 
   const stats = await Lesson.aggregate([
@@ -159,8 +163,9 @@ export async function listCoursesForUser(creator) {
   const statsByCourse = new Map(stats.map((s) => [String(s._id), s]));
   const completed = await getCompletedCounts(creator, courses.map((course) => course._id));
 
-  return courses.map(({ modules, ...course }) => ({
+  return courses.map(({ modules, shareToken, ...course }) => ({
     ...course,
+    isShared: Boolean(shareToken), // the list only needs to know, not the token itself
     moduleCount: modules.length,
     lessonCount: statsByCourse.get(String(course._id))?.lessonCount ?? 0,
     enrichedCount: statsByCourse.get(String(course._id))?.enrichedCount ?? 0,
@@ -175,7 +180,7 @@ export async function deleteCourseForUser(courseId, creator) {
 }
 
 /** Deletes a course and everything under it. */
-async function deleteCourseTree(courseId) {
+export async function deleteCourseTree(courseId) {
   await Promise.all([
     Lesson.deleteMany({ course: courseId }),
     LessonAudio.deleteMany({ course: courseId }),

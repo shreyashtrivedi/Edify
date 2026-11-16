@@ -29,6 +29,20 @@ export const generationLimiter = createLimiter({
   message: 'You are generating content too quickly. Please wait a few minutes and try again.',
 });
 
+/** Public share-link pages: no login, so counted per IP. Generous for readers, stops scrapers. */
+export const publicLimiter = createLimiter({
+  windowMs: 15 * 60 * 1000,
+  limit: 300,
+  message: 'Too many requests. Please wait a few minutes and try again.',
+});
+
+/** "Save a copy" of a shared course: many database writes, so a small limit. */
+export const copyLimiter = createLimiter({
+  windowMs: 15 * 60 * 1000,
+  limit: 10,
+  message: 'You are copying courses too quickly. Please wait a few minutes and try again.',
+});
+
 /** Tutor questions: small and quick, so a higher limit (a separate counter from generations). */
 export const tutorLimiter = createLimiter({
   windowMs: 10 * 60 * 1000, // 10 minutes

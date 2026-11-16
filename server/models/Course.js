@@ -19,11 +19,18 @@ const courseSchema = new mongoose.Schema(
       enum: ['beginner', 'intermediate', 'advanced'],
       default: 'beginner',
     },
+
+    // Public read-only link: /share/<shareToken>. Not set = not shared. Turning sharing on
+    // again creates a NEW token, so a link that was turned off never works again.
+    shareToken: { type: String },
+    sharedAt: { type: Date },
   },
   { timestamps: true },
 );
 
 // "List my courses, newest first" is the most common query.
 courseSchema.index({ creator: 1, createdAt: -1 });
+// Opening a share link looks the course up by its token. Sparse: unshared courses have none.
+courseSchema.index({ shareToken: 1 }, { unique: true, sparse: true });
 
 export const Course = mongoose.model('Course', courseSchema);
