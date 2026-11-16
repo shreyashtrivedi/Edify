@@ -1,16 +1,37 @@
 import { ArrowRight, BookOpen, CircleCheck, Layers, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { Link, useNavigate, useOutletContext } from 'react-router';
-import LevelBadge from '../components/course/LevelBadge';
+import CourseHeading from '../components/course/CourseHeading';
+import ModuleList from '../components/course/ModuleList';
+import ShareCourse from '../components/course/ShareCourse';
 import DownloadPdfButton from '../components/DownloadPdfButton';
 import { useCourses } from '../hooks/useCourses';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { coursesApi, getErrorMessage } from '../utils/api';
 import { flattenLessons, lessonPath } from '../utils/paths';
 
+/** Quiz score and completion check after a lesson title. */
+function LessonProgressBadges({ lesson }) {
+  return (
+    <>
+      {lesson.progress?.quizAnswers?.some((answer) => answer !== null) && (
+        <span className="rounded-full bg-subtle px-2 py-0.5 text-xs text-muted" title="Quiz score">
+          {lesson.progress.quizScore}/{lesson.progress.quizTotal}
+        </span>
+      )}
+      {lesson.progress?.completed && (
+        <>
+          <CircleCheck className="size-4 text-emerald-500" aria-hidden="true" />
+          <span className="sr-only">(completed)</span>
+        </>
+      )}
+    </>
+  );
+}
+
 export default function CoursePage() {
-  const { course } = useOutletContext();
-  const { removeCourse } = useCourses();
+  const { course, patchCourse } = useOutletContext();
+  const { removeCourse, refresh: refreshCourseList } = useCourses();
   const navigate = useNavigate();
   const [deleting, setDeleting] = useState(false);
   useDocumentTitle(course.title);
@@ -38,18 +59,7 @@ export default function CoursePage() {
   return (
     <article>
       <header className="border-b border-line pb-8">
-        <div className="flex flex-wrap items-center gap-2">
-          <LevelBadge level={course.level} />
-          {course.tags.map((tag) => (
-            <span key={tag} className="rounded-full bg-subtle px-2.5 py-0.5 text-xs text-muted">
-              #{tag}
-            </span>
-          ))}
-        </div>
-        <h1 className="mt-4 font-display text-3xl leading-tight font-semibold tracking-tight sm:text-4xl">
-          {course.title}
-        </h1>
-        <p className="mt-3 max-w-3xl text-lg text-muted">{course.description}</p>
+        <CourseHeading course={course} />
 
         <div className="mt-6 flex flex-wrap items-center gap-x-6 gap-y-3 text-sm text-muted">
           <span className="inline-flex items-center gap-1.5">
@@ -114,6 +124,13 @@ export default function CoursePage() {
               await downloadCoursePdf(fullCourse);
             }}
           />
+          <ShareCourse
+            course={course}
+            onShareChange={(share) => {
+              patchCourse(share); // this page updates instantly
+              refreshCourseList(); // course cards show a "Shared" label
+            }}
+          />
           <button
             type="button"
             onClick={handleDelete}
@@ -125,54 +142,11 @@ export default function CoursePage() {
         </div>
       </header>
 
-      <ol className="mt-8 space-y-5">
-        {course.modules.map((module, moduleIndex) => (
-          <li key={module._id} className="rounded-2xl border border-line bg-surface p-5 sm:p-6">
-            <div className="flex gap-4">
-              <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-brand-soft font-display font-semibold text-brand">
-                {moduleIndex + 1}
-              </span>
-              <div className="min-w-0 flex-1">
-                <h2 className="text-lg font-semibold">{module.title}</h2>
-                {module.description && (
-                  <p className="mt-1 text-sm text-muted">{module.description}</p>
-                )}
-
-                <ul className="mt-4 divide-y divide-line">
-                  {module.lessons.map((lesson, lessonIndex) => (
-                    <li key={lesson._id}>
-                      <Link
-                        to={lessonPath(course._id, moduleIndex, lessonIndex)}
-                        className="group flex items-center gap-3 py-2.5 text-sm"
-                      >
-                        <span className="w-8 shrink-0 font-mono text-xs text-muted">
-                          {moduleIndex + 1}.{lessonIndex + 1}
-                        </span>
-                        <span className="flex-1 group-hover:text-brand">{lesson.title}</span>
-                        {lesson.progress?.quizAnswers?.some((answer) => answer !== null) && (
-                          <span
-                            className="rounded-full bg-subtle px-2 py-0.5 text-xs text-muted"
-                            title="Quiz score"
-                          >
-                            {lesson.progress.quizScore}/{lesson.progress.quizTotal}
-                          </span>
-                        )}
-                        {lesson.progress?.completed && (
-                          <>
-                            <CircleCheck className="size-4 text-emerald-500" aria-hidden="true" />
-                            <span className="sr-only">(completed)</span>
-                          </>
-                        )}
-                        <ArrowRight className="size-4 text-muted opacity-0 transition-opacity group-hover:opacity-100" />
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            </div>
-          </li>
-        ))}
-      </ol>
+      <ModuleList
+        course={course}
+        lessonHref={(moduleIndex, lessonIndex) => lessonPath(course._id, moduleIndex, lessonIndex)}
+        renderLessonExtras={(lesson) => <LessonProgressBadges lesson={lesson} />}
+      />
     </article>
   );
 }

@@ -50,6 +50,14 @@ export function useCourse(courseId) {
     }));
   }, []);
 
+  /** Merges fields into the course (e.g. its share link) without refetching. */
+  const patchCourse = useCallback((patch) => {
+    setResult((current) => ({
+      ...current,
+      course: current.course && { ...current.course, ...patch },
+    }));
+  }, []);
+
   const markLessonEnriched = useCallback(
     (lessonId) => patchLesson(lessonId, { isEnriched: true }),
     [patchLesson],
@@ -59,5 +67,13 @@ export function useCourse(courseId) {
     [patchLesson],
   );
 
-  return { course, status, error: result.error, reload, markLessonEnriched, updateLessonProgress };
+  return {
+    course,
+    status,
+    error: result.error,
+    reload,
+    patchCourse,
+    markLessonEnriched,
+    updateLessonProgress,
+  };
 }
