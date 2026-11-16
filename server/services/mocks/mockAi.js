@@ -44,6 +44,23 @@ export function mockNarrationScript(lessonTitle) {
   };
 }
 
+/** A tutor answer that uses every format the chat can display (paragraphs, bold, list, code). */
+export function mockTutorAnswer(question, lessonTitle) {
+  return `Good question! This is a **sample answer** from mock mode, so I can't really read "${question.slice(0, 80)}" yet. When AI_MOCK is off, I answer using the lesson "${lessonTitle}".
+
+Here is what a real answer can contain:
+
+- **Key terms** in bold and names like \`useState\` in code style
+- Short lists like this one
+- Code examples:
+
+\`\`\`javascript
+const average = (scores) => scores.reduce((sum, s) => sum + s, 0) / scores.length;
+\`\`\`
+
+Ask a follow-up any time and I'll remember what we talked about.`;
+}
+
 export function mockLessonContent(lessonTitle) {
   return {
     objectives: [

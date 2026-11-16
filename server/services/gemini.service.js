@@ -1,7 +1,9 @@
 /**
- * Thin wrapper around Google Gemini for *structured* (JSON) generation.
+ * Thin wrapper around Google Gemini.
+ *  - generateJSON(): *structured* output (course outlines, lessons, narration scripts)
+ *  - streamText():   plain text streamed piece by piece (the "ask a doubt" tutor)
  *
- * Reliability strategy for AI output:
+ * Reliability strategy for structured AI output:
  *   1. JSON mode + a response schema → Gemini is constrained to emit our exact shape.
  *   2. Defensive parsing → still strip ```json fences / stray prose if they appear.
  *   3. zod validation → reject anything that doesn't match (wrong types, too few lessons...).
@@ -175,4 +177,104 @@ export async function generateJSON({
   throw ApiError.badGateway('The AI returned an incomplete response. Please try again.', {
     code: 'AI_INVALID_RESPONSE',
   });
+}
+
+/** Waits `ms`, or finishes early (without throwing) when the signal aborts. */
+function wait(ms, signal) {
+  return new Promise((resolve) => {
+    const done = () => {
+      clearTimeout(timer);
+      signal?.removeEventListener('abort', done); // don't pile up listeners on a long stream
+      resolve();
+    };
+    const timer = setTimeout(done, ms);
+    signal?.addEventListener('abort', done, { once: true });
+  });
+}
+
+/**
+ * The answer text in one streamed chunk. Read from the parts directly (not `chunk.text`)
+ * so "thought" parts from thinking models are never shown to the learner.
+ */
+function chunkText(chunk) {
+  const parts = chunk.candidates?.[0]?.content?.parts ?? [];
+  return parts
+    .filter((part) => typeof part.text === 'string' && !part.thought)
+    .map((part) => part.text)
+    .join('');
+}
+
+/**
+ * Streams plain text from Gemini: yields each new piece of the answer as soon as it arrives,
+ * so the UI can show it while the rest is still being written.
+ *
+ * Aborting `signal` (e.g. the learner closed the page) stops the request and ends the stream
+ * quietly, without an error.
+ *
+ * @param {object}   options
+ * @param {string}   options.systemInstruction
+ * @param {Array<{ role: 'user' | 'model', parts: Array<{ text: string }> }>} options.contents  the conversation
+ * @param {AbortSignal} [options.signal]
+ * @param {number}   [options.maxOutputTokens]
+ * @param {number}   [options.temperature]
+ * @param {string}   [options.label]   name used in logs, e.g. "tutor answer"
+ * @param {Function} [options.mock]    returns the full sample text when AI_MOCK=true (dev only)
+ * @returns {AsyncGenerator<string>}
+ */
+export async function* streamText({
+  systemInstruction,
+  contents,
+  signal,
+  maxOutputTokens = 1024,
+  temperature = 0.6,
+  label = 'stream',
+  mock,
+}) {
+  if (env.AI_MOCK && mock) {
+    // Word by word with a small delay, so streaming can be seen without an API key.
+    for (const word of mock().split(/(?<=\s)/)) {
+      await wait(30, signal);
+      if (signal?.aborted) return;
+      yield word;
+    }
+    return;
+  }
+
+  const startedAt = Date.now();
+  let produced = false;
+  let lastChunk;
+
+  try {
+    const stream = await getClient().models.generateContentStream({
+      model: env.GEMINI_MODEL,
+      contents,
+      config: { systemInstruction, temperature, maxOutputTokens, abortSignal: signal },
+    });
+
+    for await (const chunk of stream) {
+      lastChunk = chunk;
+      const text = chunkText(chunk);
+      if (text) {
+        produced = true;
+        yield text;
+      }
+    }
+  } catch (error) {
+    if (signal?.aborted) return; // stopped on purpose: not an error
+    throw toApiError(error);
+  }
+
+  if (!produced) {
+    // No text usually means the safety filters blocked the question or the answer.
+    const reason = lastChunk?.promptFeedback?.blockReason || lastChunk?.candidates?.[0]?.finishReason;
+    throw new ApiError(422, "The AI couldn't answer that. Try rephrasing your question.", {
+      code: 'AI_BLOCKED',
+      ...(reason && { details: { reason } }),
+    });
+  }
+
+  if (!env.isTest) {
+    const tokens = lastChunk?.usageMetadata?.totalTokenCount ?? '?';
+    console.info(`🤖 ${label}: ${tokens} tokens in ${Date.now() - startedAt}ms`);
+  }
 }
