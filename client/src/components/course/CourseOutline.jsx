@@ -26,7 +26,11 @@ function LessonStatusIcon({ lesson }) {
   return <Circle className="mt-0.5 size-3.5 shrink-0 opacity-40" aria-hidden="true" />;
 }
 
-export default function CourseOutline({ course }) {
+/** `lessonHref(moduleIndex, lessonIndex)` builds the links (own course by default, or a share link). */
+export default function CourseOutline({
+  course,
+  lessonHref = (moduleIndex, lessonIndex) => lessonPath(course._id, moduleIndex, lessonIndex),
+}) {
   return (
     <nav aria-label="Course outline" className="space-y-5">
       {course.modules.map((module, moduleIndex) => (
@@ -38,7 +42,7 @@ export default function CourseOutline({ course }) {
             {module.lessons.map((lesson, lessonIndex) => (
               <li key={lesson._id}>
                 <NavLink
-                  to={lessonPath(course._id, moduleIndex, lessonIndex)}
+                  to={lessonHref(moduleIndex, lessonIndex)}
                   className={({ isActive }) =>
                     `flex items-start gap-2 rounded-md px-2 py-1.5 text-sm leading-snug transition-colors ${
                       isActive

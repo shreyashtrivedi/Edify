@@ -1,4 +1,4 @@
-import { BookOpen, Layers } from 'lucide-react';
+import { BookOpen, Layers, Link2 } from 'lucide-react';
 import { Link } from 'react-router';
 import { coursePath } from '../../utils/paths';
 import LevelBadge from './LevelBadge';
@@ -27,6 +27,11 @@ export default function CourseCard({ course }) {
         <span className="inline-flex items-center gap-1">
           <BookOpen className="size-3.5" aria-hidden="true" /> {course.lessonCount} lessons
         </span>
+        {course.isShared && (
+          <span className="inline-flex items-center gap-1" title="Anyone with the link can read it">
+            <Link2 className="size-3.5" aria-hidden="true" /> Shared
+          </span>
+        )}
       </div>
       <div
         className="mt-3 h-1 overflow-hidden rounded-full bg-subtle"

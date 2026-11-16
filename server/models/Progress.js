@@ -3,9 +3,9 @@ import mongoose from 'mongoose';
 /**
  * One learner's progress in one lesson: completion and quiz answers.
  *
- * Kept separate from Lesson (and keyed by user, not by course owner) because progress
- * belongs to the *learner*: once courses can be shared, every viewer has their own progress
- * on the same lesson.
+ * Kept separate from Lesson (and keyed by user) because progress belongs to the *learner*,
+ * not to the lesson content: content can be regenerated, or copied from a share link into
+ * someone else's library, without mixing up anyone's progress.
  */
 const progressSchema = new mongoose.Schema(
   {

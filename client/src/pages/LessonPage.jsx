@@ -1,17 +1,15 @@
-import {
-  ArrowLeft,
-  ArrowRight,
-  ExternalLink,
-  RefreshCw,
-  Search,
-  Sparkles,
-  Target,
-} from 'lucide-react';
+import { RefreshCw, Sparkles } from 'lucide-react';
 import { useEffect } from 'react';
 import { Link, useOutletContext, useParams } from 'react-router';
 import CourseOutline from '../components/course/CourseOutline';
 import DownloadPdfButton from '../components/DownloadPdfButton';
 import LessonCompletion from '../components/LessonCompletion';
+import {
+  LessonKeyTopics,
+  LessonNavigation,
+  LessonObjectives,
+  LessonReadings,
+} from '../components/lesson/LessonSections';
 import LessonRenderer from '../components/LessonRenderer';
 import NarrationPlayer from '../components/NarrationPlayer';
 import LessonTutor from '../components/tutor/LessonTutor';
@@ -21,7 +19,7 @@ import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { useCourses } from '../hooks/useCourses';
 import { useLesson } from '../hooks/useLesson';
 import { useLessonProgress } from '../hooks/useLessonProgress';
-import { coursePath, flattenLessons, lessonPath, webSearchUrl } from '../utils/paths';
+import { coursePath, flattenLessons, lessonPath } from '../utils/paths';
 
 export default function LessonPage() {
   const { course, markLessonEnriched, updateLessonProgress } = useOutletContext();
@@ -51,7 +49,11 @@ export default function LessonPage() {
     },
   });
 
-  useEffect(() => window.scrollTo(0, 0), [outlineLesson?._id]);
+  // Braces matter: an effect may only return a cleanup function, and in current Chrome
+  // window.scrollTo() returns a Promise, which React would try to call (and crash) on cleanup.
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [outlineLesson?._id]);
 
   if (!outlineLesson) {
     return (
@@ -138,24 +140,7 @@ export default function LessonPage() {
 
           {isReady && (
             <>
-              {lesson.objectives?.length > 0 && (
-                <section className="mb-8 rounded-2xl border border-line bg-surface p-5">
-                  <h2 className="flex items-center gap-2 text-sm font-semibold tracking-wide text-muted uppercase">
-                    <Target className="size-4 text-brand" aria-hidden="true" /> What you&apos;ll
-                    learn
-                  </h2>
-                  <ul className="mt-3 space-y-2">
-                    {lesson.objectives.map((objective) => (
-                      <li key={objective} className="flex gap-2 text-sm leading-6">
-                        <span className="text-brand" aria-hidden="true">
-                          ✓
-                        </span>{' '}
-                        {objective}
-                      </li>
-                    ))}
-                  </ul>
-                </section>
-              )}
+              <LessonObjectives objectives={lesson.objectives} />
 
               {/* key: regenerated content gets a fresh player (its old narration was deleted) */}
               <NarrationPlayer
@@ -172,54 +157,8 @@ export default function LessonPage() {
                 onAnswersChange={(quizAnswers) => saveProgress({ quizAnswers })}
               />
 
-              {lesson.keyTopics?.length > 0 && (
-                <section className="mt-12">
-                  <h2 className="text-sm font-semibold tracking-wide text-muted uppercase">
-                    Key topics
-                  </h2>
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {lesson.keyTopics.map((topic) => (
-                      <span
-                        key={topic}
-                        className="rounded-full bg-brand-soft px-3 py-1 text-sm text-brand"
-                      >
-                        {topic}
-                      </span>
-                    ))}
-                  </div>
-                </section>
-              )}
-
-              {lesson.resources?.length > 0 && (
-                <section className="mt-10">
-                  <h2 className="text-sm font-semibold tracking-wide text-muted uppercase">
-                    Suggested readings
-                  </h2>
-                  <ul className="mt-3 space-y-2">
-                    {lesson.resources.map((resource) => (
-                      <li key={resource.title}>
-                        <a
-                          href={resource.url || webSearchUrl(resource.searchQuery)}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="group flex items-center gap-3 rounded-xl border border-line bg-surface px-4 py-3 text-sm hover:border-brand/40"
-                        >
-                          {resource.url ? (
-                            <ExternalLink
-                              className="size-4 shrink-0 text-muted"
-                              aria-hidden="true"
-                            />
-                          ) : (
-                            <Search className="size-4 shrink-0 text-muted" aria-hidden="true" />
-                          )}
-                          <span className="flex-1 group-hover:text-brand">{resource.title}</span>
-                          <span className="text-xs text-muted capitalize">{resource.type}</span>
-                        </a>
-                      </li>
-                    ))}
-                  </ul>
-                </section>
-              )}
+              <LessonKeyTopics topics={lesson.keyTopics} />
+              <LessonReadings resources={lesson.resources} />
 
               <LessonCompletion
                 progress={progress}
@@ -231,39 +170,11 @@ export default function LessonPage() {
           )}
         </div>
 
-        <nav
-          className="mt-14 grid gap-3 border-t border-line pt-6 sm:grid-cols-2"
-          aria-label="Lesson navigation"
-        >
-          {previous ? (
-            <Link
-              to={lessonPath(course._id, previous.moduleIndex, previous.lessonIndex)}
-              className="group rounded-xl border border-line p-4 hover:border-brand/40"
-            >
-              <span className="flex items-center gap-1 text-xs text-muted">
-                <ArrowLeft className="size-3.5" /> Previous
-              </span>
-              <span className="mt-1 block text-sm font-medium group-hover:text-brand">
-                {previous.lesson.title}
-              </span>
-            </Link>
-          ) : (
-            <span />
-          )}
-          {next && (
-            <Link
-              to={lessonPath(course._id, next.moduleIndex, next.lessonIndex)}
-              className="group rounded-xl border border-line p-4 text-right hover:border-brand/40"
-            >
-              <span className="flex items-center justify-end gap-1 text-xs text-muted">
-                Next <ArrowRight className="size-3.5" />
-              </span>
-              <span className="mt-1 block text-sm font-medium group-hover:text-brand">
-                {next.lesson.title}
-              </span>
-            </Link>
-          )}
-        </nav>
+        <LessonNavigation
+          previous={previous}
+          next={next}
+          lessonHref={(m, l) => lessonPath(course._id, m, l)}
+        />
       </article>
 
       <aside className="hidden xl:block">

@@ -43,13 +43,17 @@ Edify/
 │       │   ├── home/                Landing (logged-out home page)
 │       │   ├── LessonRenderer.jsx   content[] → block components
 │       │   ├── blocks/              Heading, Paragraph, List, Code, Callout, Video, MCQ (+ InlineText)
-│       │   ├── course/              CourseCard, CourseOutline, LevelBadge
+│       │   ├── course/              CourseCard, CourseOutline, CourseHeading, ModuleList, LevelBadge,
+│       │   │                        ShareCourse (share dialog)
+│       │   ├── lesson/              LessonSections (objectives, key topics, readings, prev/next)
+│       │   ├── share/               SharedBanner (read-only notice + save a copy)
 │       │   ├── tutor/               LessonTutor (button + panel), TutorPanel, TutorMessage, TutorComposer
 │       │   ├── ui/                  LoadingSpinner, ErrorMessage, Skeleton
 │       │   └── PromptForm, GeneratingCourse, Sidebar, UserMenu, ServerStatus, ThemeToggle, Logo,
 │       │       NarrationPlayer, LessonCompletion, DownloadPdfButton
-│       ├── pages/             HomePage, CourseLayout, CoursePage, LessonPage, NotFoundPage
-│       ├── hooks/             useCourse, useLesson, useLessonProgress, useTutor, useCourses, useTheme,
+│       ├── pages/             HomePage, CourseLayout, CoursePage, LessonPage, NotFoundPage,
+│       │                      SharedCourseLayout, SharedCoursePage, SharedLessonPage (share links)
+│       ├── hooks/             useCourse, useLesson, useLessonProgress, useTutor, useCourses, useTheme, useAsyncData,
 │       │                      useServerStatus, useDocumentTitle
 │       ├── context/           CoursesProvider (global course list), ThemeProvider (light / dark / system)
 │       ├── utils/             api.js (axios + endpoint helpers), paths.js (URL builders), inlineFormat.js, format.js,
@@ -141,6 +145,31 @@ Failures become our standard error shape: `401 AUTH_REQUIRED` (no token), `401 T
   same page). **The real protection is the server**: the UI can be bypassed, the token check can't.
 - AI generation is rate-limited **per user** (`req.user.sub`), so people sharing one IP address
   (a college Wi-Fi) don't block each other.
+
+### Public share links (`share.service.js`)
+
+The one deliberate exception to "everything needs a login": an owner can share a course read-only.
+
+- **The link is the key:** `POST /api/courses/:id/share` stores a random `shareToken` on the course:
+  `crypto.randomBytes(16)`, i.e. **128 random bits**, written as 22 URL-safe characters. Guessing one is
+  hopeless, so only people who were given the link can open the course.
+- **Public routes:** `/api/share/:token…` is mounted *without* `requireAuth`. The responses contain only
+  course material: never the owner's id, their original prompt, their progress or their tutor chats.
+  Visitors can read lessons that already exist but **cannot trigger AI generation** (it would spend the
+  owner's quota), so unopened lessons show as "not written yet".
+- **Turning it off** (`DELETE /api/courses/:id/share`) removes the token: the link is dead immediately.
+  Turning it on again creates a **new** token, so an old link never comes back to life.
+- **Two quick clicks, one token:** creating the token is a single atomic update that only matches when
+  no token exists yet (`shareToken: { $exists: false }`), so a double click can't hand out a link that is
+  then silently replaced. Tested with two simultaneous requests.
+- **Abuse limits:** public routes are rate-limited per IP (300 / 15 min), respond `Cache-Control: no-store`
+  (a turned-off link must not live on in a cache) and `X-Robots-Tag: noindex`; the shared pages also add
+  `<meta name="robots" content="noindex">`.
+- **Save a copy:** `POST /api/share/:token/copy` (login required, 10 / 15 min) duplicates the outline and
+  every written lesson into the visitor's own library, using the same "create all ids in memory, then 3
+  writes, delete everything on failure" approach as `saveCourseOutline`. The copy is a normal course:
+  progress, the tutor and narration work on it. Not copied: the owner's progress, chats and audio.
+- The client sends public requests with `skipAuth`, so they never wait for (or fail on) a token renewal.
 
 ### Frontend pieces
 
@@ -359,7 +388,7 @@ Course 1 ──< Module 1 ──< Lesson          User (one per Auth0 account; C
 
 | Model | Key fields |
 |---|---|
-| **Course** | `title`, `description`, `creator` (Auth0 `sub`), `modules[]` → Module, `tags[]`, `prompt`, `level`, timestamps |
+| **Course** | `title`, `description`, `creator` (Auth0 `sub`), `modules[]` → Module, `tags[]`, `prompt`, `level`, `shareToken?` + `sharedAt?` (set only while shared; unique sparse index), timestamps |
 | **Module** | `title`, `description`, `course` → Course, `order`, `lessons[]` → Lesson |
 | **User** | `auth0Id` (unique, = token `sub`), `name`, `email`, `picture`, `lastLoginAt` |
 | **LessonAudio** | `lesson` (unique), `course` (cascade delete), `data` (MP3 Buffer), `mimeType` |
@@ -387,10 +416,16 @@ Design notes:
 |---|---|---|---|
 | GET | `/api/health` | DB status, uptime. **Public** | `200` |
 | POST | `/api/courses/generate` | `{ prompt, level?, moduleCount? }`, rate-limited | `201 { course }` |
-| GET | `/api/courses` | user's courses + `moduleCount`, `lessonCount`, `enrichedCount` | `200 { courses }` |
+| GET | `/api/courses` | user's courses + `moduleCount`, `lessonCount`, `enrichedCount`, `completedCount`, `isShared` | `200 { courses }` |
 | GET | `/api/courses/:id` | course + modules + lesson titles (no content) | `200 { course }` |
 | GET | `/api/courses/:id/export` | course + every lesson **with** content (for the course PDF) | `200 { course }` |
 | DELETE | `/api/courses/:id` | cascades to modules, lessons, audio, progress and tutor chats | `204` |
+| POST | `/api/courses/:id/share` | turns the share link on (returns the existing one if already on) | `200 { share: { token, sharedAt } }` |
+| DELETE | `/api/courses/:id/share` | turns it off (the link stops working at once) | `204` |
+| GET | `/api/share/:token` | **Public.** Shared course outline (no owner details) | `200 { course }` |
+| GET | `/api/share/:token/lessons/:lessonId` | **Public.** One lesson (no content if never opened) | `200 { lesson }` |
+| GET | `/api/share/:token/export` | **Public.** Every written lesson, for the course PDF | `200 { course }` |
+| POST | `/api/share/:token/copy` | Login required. Copies the course into your library | `201 { course }` |
 | GET | `/api/lessons/:id` | one lesson (empty `content` until generated) | `200 { lesson }` |
 | POST | `/api/lessons/:id/generate` | `{ force? }`, rate-limited; returns stored content if already generated | `200 { lesson }` |
 | POST | `/api/lessons/:id/narration` | records the Hinglish narration once (rate-limited); `409` if the lesson has no content yet | `200 { narration }` |
@@ -402,7 +437,7 @@ Design notes:
 | PUT | `/api/users/me` | `{ name?, email?, picture? }`: create/update profile after login | `200 { user }` (with `stats`) |
 | GET | `/api/users/me` | profile + `stats: { courses, lessonsGenerated, lessonsCompleted }` | `200 { user }` |
 
-Every route except `/api/health` requires `Authorization: Bearer <Auth0 access token>`, otherwise **401**.
+Every route except `/api/health` and the public `/api/share/...` reads requires `Authorization: Bearer <Auth0 access token>`, otherwise **401**.
 
 Error shape (all endpoints): `{ "error": { "message": "...", "code": "VALIDATION_ERROR", "details": [...] } }`
 
@@ -417,6 +452,9 @@ Error shape (all endpoints): `{ "error": { "message": "...", "code": "VALIDATION
 │   └── courses/:courseId                           CourseLayout: loads the course once
 │       ├── (index)                                 CoursePage: overview + modules + lessons
 │       └── module/:moduleIndex/lesson/:lessonIndex LessonPage (1-based numbers in the URL)
+├── share/:token                                    SharedCourseLayout: PUBLIC, loads the shared course once
+│   ├── (index)                                     SharedCoursePage: outline, Start reading, course PDF
+│   └── module/:moduleIndex/lesson/:lessonIndex     SharedLessonPage: read-only lesson
 └── *                                               NotFoundPage
 ```
 
@@ -450,8 +488,8 @@ generating, `markLessonEnriched()` updates that shared copy and the outline's ch
 ### Progress tracking
 
 - **Where it's stored:** a `progresses` collection, one document per *learner* per lesson. Not on the Lesson
-  itself, because progress belongs to whoever is learning: once courses can be shared, each viewer has
-  their own progress on the same lesson.
+  itself, because progress belongs to whoever is learning, not to the content: a lesson can be regenerated,
+  or copied from a share link into someone else's library, without mixing up anyone's progress.
 - **The server grades quizzes.** The browser sends only which option was picked for each question
   (`quizAnswers: [1, null, 3, 0]`). The score is computed from the correct answers stored in the lesson.
   If the browser sent a score, anyone could claim 100% from the dev tools.
@@ -466,6 +504,25 @@ generating, `markLessonEnriched()` updates that shared copy and the outline's ch
 - **Instant UI:** after a save, the shared course copy (`useCourse().updateLessonProgress`) is patched so the
   outline updates without a refetch; the global course list refreshes only when completion actually changed.
 - `MCQBlock` became a **controlled component**: `LessonRenderer` owns all answers (needed to save and restore them).
+
+### Share links (`ShareCourse`, `Shared*` pages)
+
+- **Owner side:** a *Share* button on the course page opens a dialog built on the native `<dialog>`
+  element with `showModal()`. The browser then provides the modal behaviour itself: focus is trapped
+  inside, Escape closes it, the page behind becomes inert and focus returns to the button. The dialog
+  creates the link, copies it (falling back to selecting the text if the clipboard is blocked), opens it
+  as a visitor, or turns it off after a confirmation. After a change, focus moves to whatever replaced
+  the clicked button (an effect on the token, run once React has rendered the change).
+- **Visitor side:** `/share/:token` pages reuse the real lesson components (`LessonRenderer`, the
+  `LessonSections` parts, `CourseOutline` and `ModuleList` with a `lessonHref` builder), minus everything
+  that writes: no progress, tutor, narration or regenerate. Quizzes still work, locally.
+- **`SharedBanner`** says it's read-only and offers the next step: *Save a copy* (logged in), *Log in to
+  save a copy* (logged out, and Auth0 brings you back to the same page), or *This is your course: open it*
+  when the owner views their own link.
+- To reuse code instead of copying it, the lesson page's objectives / key topics / readings / prev-next
+  parts became `components/lesson/LessonSections.jsx`, and the course page's module cards became
+  `ModuleList` + `CourseHeading`. `useAsyncData(key, load)` is a small generic version of the
+  `useCourse` loading pattern for the shared pages.
 
 ### Ask a doubt (`components/tutor/`, `useTutor`)
 
@@ -586,11 +643,18 @@ Secrets live **only** on the server. Anything prefixed `VITE_` ends up in public
   are fast, free and deterministic. Covered: authentication (missing/forged/expired/wrong-audience
   tokens), data isolation between users, progress (server-side grading, auto-complete, invalid answers,
   reset on regenerate), the tutor (NDJSON streaming, lesson + history sent to the AI, history caps,
-  errors before vs during the stream, nothing saved when the client disconnects), narration (script + TTS call shape, MP3 output, record-once,
+  errors before vs during the stream, nothing saved when the client disconnects), share links (public
+  reads without owner details, turning off/on, one token under concurrent clicks, copying into another
+  user's library), narration (script + TTS call shape, MP3 output, record-once,
   409 before content exists, cleanup on regenerate/delete), YouTube video selection/caching/quota errors (fake YouTube API
   via a stubbed `fetch`), validation, persistence, cascade delete, retry on
   invalid AI output, error mapping, JSON parsing, lesson caching, in-flight dedupe, block
   normalisation, and mock data staying in sync with the schemas.
+- **Browser QA** against production builds (`vite build` + `vite preview`) with temporary pages, then deleted.
+  It caught a real bug no unit test would: `useEffect(() => window.scrollTo(0, 0), …)` *returns* the
+  result of `scrollTo`, and current Chrome (156) returns a **Promise** from it. React treats an effect's
+  return value as its cleanup function and crashed calling the Promise when moving to the next lesson.
+  The fix is a block body (`() => { window.scrollTo(0, 0); }`): an effect must return nothing or a function.
 - **Lint:** ESLint (server), oxlint (client).
 - **CI:** GitHub Actions runs lint + tests (server) and lint + build (client) on every push/PR.
 - **Git workflow:** one feature branch per phase, merged into `main` with `--no-ff`.
@@ -608,5 +672,5 @@ Secrets live **only** on the server. Anything prefixed `VITE_` ends up in public
 - [x] Phase 8a: Progress tracking (completion, saved quiz answers graded on the server, progress bars)
 - [x] Phase 8b: Dark mode (light / dark / system, saved, no flash on load, WCAG AA contrast)
 - [x] Phase 8c: "Ask a doubt" tutor (streamed answers grounded in the lesson, saved chat, Hinglish)
-- [ ] Phase 8d: Share links (read-only public course link)
+- [x] Phase 8d: Share links (read-only public link, turn off/on, save a copy to your library)
 - [ ] Phase 9: Deploy (Render + Vercel), README, demo video

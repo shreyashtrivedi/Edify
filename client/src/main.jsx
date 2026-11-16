@@ -17,6 +17,9 @@ import CoursePage from './pages/CoursePage';
 import HomePage from './pages/HomePage';
 import LessonPage from './pages/LessonPage';
 import NotFoundPage from './pages/NotFoundPage';
+import SharedCourseLayout from './pages/SharedCourseLayout';
+import SharedCoursePage from './pages/SharedCoursePage';
+import SharedLessonPage from './pages/SharedLessonPage';
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
@@ -40,6 +43,15 @@ createRoot(document.getElementById('root')).render(
                       element={<LessonPage />}
                     />
                   </Route>
+                </Route>
+
+                {/* Share links are public: anyone with the link can read, no login needed */}
+                <Route path="share/:token" element={<SharedCourseLayout />}>
+                  <Route index element={<SharedCoursePage />} />
+                  <Route
+                    path="module/:moduleIndex/lesson/:lessonIndex"
+                    element={<SharedLessonPage />}
+                  />
                 </Route>
 
                 <Route path="*" element={<NotFoundPage />} />

@@ -19,7 +19,11 @@ export default function CourseLayout() {
   if (courseState.status === 'error') {
     return (
       <div className="mx-auto max-w-xl py-16">
-        <ErrorMessage title="Couldn't open this course" message={courseState.error} onRetry={courseState.reload} />
+        <ErrorMessage
+          title="Couldn't open this course"
+          message={courseState.error}
+          onRetry={courseState.reload}
+        />
         <Link to="/" className="mt-6 inline-block text-sm font-medium text-brand hover:underline">
           ← Back to home
         </Link>

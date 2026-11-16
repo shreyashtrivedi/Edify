@@ -26,7 +26,8 @@ export function setAccessTokenGetter(getter) {
 }
 
 api.interceptors.request.use(async (config) => {
-  if (getAccessToken) {
+  // Public endpoints (share links) never need the token, so they still work if renewing it fails
+  if (getAccessToken && !config.skipAuth) {
     config.headers.Authorization = `Bearer ${await getAccessToken()}`;
   }
   return config;
@@ -40,6 +41,26 @@ export const coursesApi = {
   /** The course with every generated lesson's full content (for the course PDF). */
   export: (id) => api.get(`/courses/${id}/export`).then((res) => res.data.course),
   remove: (id) => api.delete(`/courses/${id}`),
+  /** Turns the public read-only link on (or returns the existing one): { token, sharedAt } */
+  share: (id) => api.post(`/courses/${id}/share`).then((res) => res.data.share),
+  /** Turns the public link off: it stops working immediately. */
+  unshare: (id) => api.delete(`/courses/${id}/share`),
+};
+
+/** Shared courses, opened through a share link. Reading needs no login; copying does. */
+const publicRequest = { skipAuth: true };
+export const sharedApi = {
+  course: (token, options) =>
+    api.get(`/share/${token}`, { ...publicRequest, ...options }).then((res) => res.data.course),
+  lesson: (token, lessonId, options) =>
+    api
+      .get(`/share/${token}/lessons/${lessonId}`, { ...publicRequest, ...options })
+      .then((res) => res.data.lesson),
+  /** Every generated lesson's content (for the course PDF). */
+  export: (token) =>
+    api.get(`/share/${token}/export`, publicRequest).then((res) => res.data.course),
+  /** Copies the course into the logged-in user's library and returns the new course. */
+  copy: (token) => api.post(`/share/${token}/copy`).then((res) => res.data.course),
 };
 
 export const lessonsApi = {
