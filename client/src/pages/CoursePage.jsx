@@ -1,5 +1,5 @@
 import { ArrowRight, BookOpen, CircleCheck, Layers, Trash2 } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useNavigate, useOutletContext } from 'react-router';
 import CourseHeading from '../components/course/CourseHeading';
 import ModuleList from '../components/course/ModuleList';
@@ -9,6 +9,7 @@ import { useCourses } from '../hooks/useCourses';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { coursesApi, getErrorMessage } from '../utils/api';
 import { flattenLessons, lessonPath } from '../utils/paths';
+import { preload } from './lazyPages';
 
 /** Quiz score and completion check after a lesson title. */
 function LessonProgressBadges({ lesson }) {
@@ -35,6 +36,9 @@ export default function CoursePage() {
   const navigate = useNavigate();
   const [deleting, setDeleting] = useState(false);
   useDocumentTitle(course.title);
+  useEffect(() => {
+    preload.lesson(); // the likely next page: download it in the background
+  }, []);
 
   const lessons = flattenLessons(course);
   const readyCount = lessons.filter(({ lesson }) => lesson.isEnriched).length;

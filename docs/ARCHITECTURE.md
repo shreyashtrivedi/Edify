@@ -52,7 +52,8 @@ Edify/
 │       │   └── PromptForm, GeneratingCourse, Sidebar, UserMenu, ServerStatus, ThemeToggle, Logo,
 │       │       NarrationPlayer, LessonCompletion, DownloadPdfButton
 │       ├── pages/             HomePage, CourseLayout, CoursePage, LessonPage, NotFoundPage,
-│       │                      SharedCourseLayout, SharedCoursePage, SharedLessonPage (share links)
+│       │                      SharedCourseLayout, SharedCoursePage, SharedLessonPage (share links),
+│       │                      lazyPages.js (which pages load on demand)
 │       ├── hooks/             useCourse, useLesson, useLessonProgress, useTutor, useCourses, useTheme, useAsyncData,
 │       │                      useServerStatus, useDocumentTitle
 │       ├── context/           CoursesProvider (global course list), ThemeProvider (light / dark / system)
@@ -609,6 +610,58 @@ a course), so the server spends nothing on it. The course PDF needs every lesson
 - **Page numbers:** text filled in after layout (`render` prop) is mis-placed when positioned with
   `bottom`, so it is positioned from the top of the A4 page instead.
 
+### Performance: loading only what a page needs
+
+The home page is all a first-time visitor needs, so only it ships in the first download. Everything
+else is **code-split** (`pages/lazyPages.js`, `React.lazy` + `<Suspense>`):
+
+| Downloaded | When | Size (gzip) |
+|---|---|---|
+| app code + axios | first visit | 98 kB (35 kB) |
+| `react` (react, react-dom, router) | first visit, then cached | 260 kB (83 kB) |
+| `auth0` (login SDK) | first visit, then cached | 235 kB (66 kB) |
+| course / shared pages | first time one is opened | 2–10 kB each |
+| lesson page + code highlighter (Prism) | first time a lesson is opened | 21 + 101 kB (7 + 32 kB) |
+| PDF library | only when "Download PDF" is clicked | 1.2 MB (446 kB) |
+
+- Before: one 734 kB file (223 kB gzip) on every first visit. After: 593 kB (183 kB gzip), and **after a
+  deploy returning visitors re-download only the 98 kB app file**: React and Auth0 have their own
+  long-cached files (`codeSplitting.groups` in `vite.config.js`, matched by exact package names so
+  nothing used only by lazy pages gets pulled in).
+- **Preloading** keeps navigation instant: the home page starts downloading the course page in the
+  background, and a course page starts downloading the lesson page (`preload.*` in `lazyPages.js`).
+- Auth0 stays in the first download on purpose: the first screen depends on whether you're logged in,
+  and the login code is critical (rewriting it to load later wasn't worth the risk).
+
+### Accessibility & mobile
+
+Checked with **axe-core** (WCAG 2.1 AA + best practices) on 10 screens (landing, home, course, lesson,
+tutor open, share dialog, shared course, shared lesson, unwritten lesson, 404) × desktop and phone ×
+light and dark = 40 combinations, plus horizontal-overflow and crash checks. Final result: **0 violations**.
+What it found, and the fixes:
+- **Code comments too faint:** Night Owl's comment colour is 3.9:1 on its background; lightened to 6.1:1.
+- **Scrollable code unreachable by keyboard:** on phones long code lines scroll sideways, so the `<pre>`
+  got `tabIndex={0}` (focus it, then use the arrow keys).
+
+Found by hand (automated tools can't see these):
+- **The closed mobile drawer was still focusable:** sliding it off-screen doesn't remove its links from
+  the Tab order. It is now `invisible` when closed below `lg`. Opening moves focus inside, Escape closes it
+  and returns focus to the menu button (`aria-expanded` reflects the state). CSS detail: the `visibility`
+  transition only applies when closing, because a hidden→visible transition still counts as hidden at
+  its first frame, which made the focus move fail.
+- **Cramped cards on phones:** the narration card, shared banner and completion card squeezed their text
+  into a one-word-wide column next to the button. The text now has a minimum width (`basis-48`), so the
+  button wraps below it, full width.
+- The floating "Ask a doubt" button is a round icon on phones (the label stays for screen readers), so it
+  covers less of the lesson. The copy button announces "Code copied".
+
+### Link previews
+
+`index.html` has Open Graph tags (`og:title`, `og:description`, `og:image`, `twitter:card`), so a pasted
+link shows a proper card in WhatsApp, LinkedIn or Slack. Those apps don't run JavaScript, so the card is
+the same for every page. `public/og-image.png` (1200×630) was rendered from an HTML mock-up with the real
+fonts. The image URL must be absolute, so it comes from `VITE_SITE_URL` at build time.
+
 ### Security in rendering
 
 **Videos** use a "lite embed": only the thumbnail is shown until the learner clicks play, then a
@@ -634,12 +687,15 @@ with a readable message, instead of failing on the first request.
 | `AUTH0_DOMAIN`, `AUTH0_AUDIENCE` | server | which tenant issues tokens and which API they must be for (required in production) |
 | `VITE_AUTH0_DOMAIN`, `VITE_AUTH0_CLIENT_ID`, `VITE_AUTH0_AUDIENCE` | client | Auth0 login settings (public by design: SPAs have no client secret) |
 | `VITE_API_URL` | client | backend base URL (public, baked into the bundle) |
+| `VITE_SITE_URL` | client | the site's own public address, for the link-preview image URL in `index.html` |
 
 Secrets live **only** on the server. Anything prefixed `VITE_` ends up in public JavaScript.
 
 ## 10. Quality & tooling
 
-- **Tests:** vitest + supertest against an in-memory MongoDB; the Gemini SDK is mocked, so tests
+- **Client tests (vitest):** the pure logic: tutor-answer parsing, inline formatting, durations and
+  file names, PDF text sanitising, URL builders and saving the theme choice (27 tests, run in CI).
+- **Server tests:** vitest + supertest against an in-memory MongoDB; the Gemini SDK is mocked, so tests
   are fast, free and deterministic. Covered: authentication (missing/forged/expired/wrong-audience
   tokens), data isolation between users, progress (server-side grading, auto-complete, invalid answers,
   reset on regenerate), the tutor (NDJSON streaming, lesson + history sent to the AI, history caps,
@@ -656,7 +712,7 @@ Secrets live **only** on the server. Anything prefixed `VITE_` ends up in public
   return value as its cleanup function and crashed calling the Promise when moving to the next lesson.
   The fix is a block body (`() => { window.scrollTo(0, 0); }`): an effect must return nothing or a function.
 - **Lint:** ESLint (server), oxlint (client).
-- **CI:** GitHub Actions runs lint + tests (server) and lint + build (client) on every push/PR.
+- **CI:** GitHub Actions runs lint + tests (server) and lint + tests + build (client) on every push/PR.
 - **Git workflow:** one feature branch per phase, merged into `main` with `--no-ff`.
 
 ## 11. Roadmap
@@ -673,4 +729,5 @@ Secrets live **only** on the server. Anything prefixed `VITE_` ends up in public
 - [x] Phase 8b: Dark mode (light / dark / system, saved, no flash on load, WCAG AA contrast)
 - [x] Phase 8c: "Ask a doubt" tutor (streamed answers grounded in the lesson, saved chat, Hinglish)
 - [x] Phase 8d: Share links (read-only public link, turn off/on, save a copy to your library)
+- [x] Polish: code-splitting, accessibility audit (0 violations), phone layouts, client tests, link previews
 - [ ] Phase 9: Deploy (Render + Vercel), README, demo video

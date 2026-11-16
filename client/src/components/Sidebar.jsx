@@ -1,4 +1,5 @@
 import { BookOpen, Plus } from 'lucide-react';
+import { useEffect, useRef } from 'react';
 import { NavLink } from 'react-router';
 import { useCourses } from '../hooks/useCourses';
 import { coursePath } from '../utils/paths';
@@ -15,10 +16,18 @@ const navLinkClass = ({ isActive }) =>
 
 /**
  * Persistent left navigation: new course + the user's courses.
- * On mobile it slides in as a drawer (open state is owned by App).
+ * On mobile it slides in as a drawer (open state is owned by App):
+ * - closed, it is `invisible` below the lg breakpoint, so its links can't receive keyboard focus
+ *   or be read by screen readers while off-screen (sliding it away alone doesn't do that);
+ * - opening moves focus into it, and Escape closes it.
  */
-export default function Sidebar({ open, onClose }) {
+export default function Sidebar({ id, open, onClose }) {
   const { courses, status } = useCourses();
+  const asideRef = useRef(null);
+
+  useEffect(() => {
+    if (open) asideRef.current?.querySelector('a, button')?.focus();
+  }, [open]);
 
   return (
     <>
@@ -32,10 +41,17 @@ export default function Sidebar({ open, onClose }) {
       />
 
       <aside
-        className={`fixed inset-y-0 left-0 z-40 flex w-72 flex-col border-r border-line bg-surface transition-transform lg:translate-x-0 ${
-          open ? 'translate-x-0' : '-translate-x-full'
+        ref={asideRef}
+        id={id}
+        // The new state's transition applies. Opening: visible at once (so focus can move in).
+        // Closing: visibility is transitioned too, so it turns invisible only after sliding out.
+        className={`fixed inset-y-0 left-0 z-40 flex w-72 flex-col border-r border-line bg-surface lg:translate-x-0 ${
+          open
+            ? 'translate-x-0 transition-[translate]'
+            : '-translate-x-full transition-[translate,visibility] max-lg:invisible'
         }`}
         aria-label="Sidebar"
+        onKeyDown={(event) => open && event.key === 'Escape' && onClose()}
       >
         <div className="flex h-16 items-center px-5">
           <Logo />

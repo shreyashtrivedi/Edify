@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { Suspense, useRef, useState } from 'react';
 import { Outlet } from 'react-router';
 import Logo from './components/Logo';
 import Sidebar from './components/Sidebar';
+import LoadingSpinner from './components/ui/LoadingSpinner';
 
 /**
  * Root layout: persistent sidebar + main content area.
@@ -9,17 +10,26 @@ import Sidebar from './components/Sidebar';
  */
 export default function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const menuButtonRef = useRef(null);
+
+  function closeSidebar() {
+    setSidebarOpen(false);
+    menuButtonRef.current?.focus(); // back to where the user was (does nothing on desktop, where it's hidden)
+  }
 
   return (
     <div className="min-h-dvh">
-      <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <Sidebar id="sidebar" open={sidebarOpen} onClose={closeSidebar} />
 
       <div className="lg:pl-72">
         {/* Mobile top bar */}
         <header className="sticky top-0 z-20 flex h-14 items-center gap-3 border-b border-line bg-surface/90 px-4 backdrop-blur lg:hidden">
           <button
+            ref={menuButtonRef}
             type="button"
             onClick={() => setSidebarOpen(true)}
+            aria-expanded={sidebarOpen}
+            aria-controls="sidebar"
             className="rounded-lg p-2 text-muted hover:bg-subtle hover:text-ink"
             aria-label="Open navigation"
           >
@@ -35,7 +45,10 @@ export default function App() {
         </header>
 
         <main className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-8 lg:py-12">
-          <Outlet />
+          {/* Shown while an on-demand page (see pages/lazyPages.js) downloads for the first time */}
+          <Suspense fallback={<LoadingSpinner fullPage />}>
+            <Outlet />
+          </Suspense>
         </main>
       </div>
     </div>

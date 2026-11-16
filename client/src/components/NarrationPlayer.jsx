@@ -51,7 +51,8 @@ export default function NarrationPlayer({ lessonId, initialNarration }) {
         <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-brand text-on-brand">
           <Headphones className="size-5" aria-hidden="true" />
         </span>
-        <div className="min-w-0 flex-1">
+        {/* basis-48: on narrow screens the text keeps room and the button wraps below it */}
+        <div className="min-w-0 flex-1 basis-48">
           <h2 id="narration-heading" className="font-semibold">
             Listen in Hinglish
           </h2>
@@ -67,7 +68,7 @@ export default function NarrationPlayer({ lessonId, initialNarration }) {
             type="button"
             onClick={handleListen}
             disabled={busy}
-            className="inline-flex items-center gap-2 rounded-xl bg-brand px-4 py-2 text-sm font-semibold text-on-brand shadow-sm hover:bg-brand-strong disabled:opacity-70"
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-brand px-4 py-2 text-sm font-semibold text-on-brand shadow-sm hover:bg-brand-strong disabled:opacity-70 max-sm:w-full"
           >
             {busy ? (
               <LoaderCircle className="size-4 animate-spin" aria-hidden="true" />

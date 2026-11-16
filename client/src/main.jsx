@@ -12,14 +12,16 @@ import { AuthProvider } from './auth/AuthProvider';
 import RequireAuth from './auth/RequireAuth';
 import { CoursesProvider } from './context/CoursesProvider';
 import { ThemeProvider } from './context/ThemeProvider';
-import CourseLayout from './pages/CourseLayout';
-import CoursePage from './pages/CoursePage';
 import HomePage from './pages/HomePage';
-import LessonPage from './pages/LessonPage';
+import {
+  CourseLayout,
+  CoursePage,
+  LessonPage,
+  SharedCourseLayout,
+  SharedCoursePage,
+  SharedLessonPage,
+} from './pages/lazyPages';
 import NotFoundPage from './pages/NotFoundPage';
-import SharedCourseLayout from './pages/SharedCourseLayout';
-import SharedCoursePage from './pages/SharedCoursePage';
-import SharedLessonPage from './pages/SharedLessonPage';
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>

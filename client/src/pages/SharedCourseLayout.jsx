@@ -1,3 +1,4 @@
+import { Suspense } from 'react';
 import { Link, Outlet, useParams } from 'react-router';
 import SharedBanner from '../components/share/SharedBanner';
 import ErrorMessage from '../components/ui/ErrorMessage';
@@ -40,7 +41,10 @@ export default function SharedCourseLayout() {
       {/* React 19 moves this into <head>: shared courses are for people with the link, not search engines */}
       <meta name="robots" content="noindex" />
       <SharedBanner course={course} token={token} />
-      <Outlet context={{ course, token }} />
+      {/* Own boundary, so the banner stays put while a page downloads (pages/lazyPages.js) */}
+      <Suspense fallback={<LoadingSpinner fullPage />}>
+        <Outlet context={{ course, token }} />
+      </Suspense>
     </>
   );
 }

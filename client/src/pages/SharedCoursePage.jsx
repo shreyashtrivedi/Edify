@@ -1,4 +1,5 @@
 import { ArrowRight, BookOpen, FileText, Layers } from 'lucide-react';
+import { useEffect } from 'react';
 import { Link, useOutletContext } from 'react-router';
 import CourseHeading from '../components/course/CourseHeading';
 import ModuleList from '../components/course/ModuleList';
@@ -6,11 +7,15 @@ import DownloadPdfButton from '../components/DownloadPdfButton';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { sharedApi } from '../utils/api';
 import { flattenLessons, sharedLessonPath } from '../utils/paths';
+import { preload } from './lazyPages';
 
 /** Overview of a shared course: outline, "Start reading" and the course PDF. Read-only. */
 export default function SharedCoursePage() {
   const { course, token } = useOutletContext();
   useDocumentTitle(course.title);
+  useEffect(() => {
+    preload.sharedLesson(); // the likely next page: download it in the background
+  }, []);
 
   const lessons = flattenLessons(course);
   const writtenCount = lessons.filter(({ lesson }) => lesson.isEnriched).length;

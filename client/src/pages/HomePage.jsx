@@ -1,5 +1,5 @@
 import { useAuth0 } from '@auth0/auth0-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
 import CourseCard from '../components/course/CourseCard';
 import GeneratingCourse from '../components/GeneratingCourse';
@@ -12,6 +12,7 @@ import { useCourses } from '../hooks/useCourses';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { coursesApi, getErrorMessage } from '../utils/api';
 import { coursePath } from '../utils/paths';
+import { preload } from './lazyPages';
 
 /** Logged out: the landing page. Logged in: the course generator and the user's courses. */
 export default function HomePage() {
@@ -24,9 +25,13 @@ export default function HomePage() {
 
 function CourseGenerator() {
   const navigate = useNavigate();
-  const { courses, status, addCourse } = useCourses();
+  const { courses, status, addCourse, refresh } = useCourses();
   const [generating, setGenerating] = useState(null); // the topic being generated
   const [error, setError] = useState(null);
+
+  useEffect(() => {
+    preload.course(); // a course page is the next stop (opened or just generated): fetch it now
+  }, []);
 
   async function handleGenerate(input) {
     setGenerating(input.prompt);
@@ -77,7 +82,11 @@ function CourseGenerator() {
           </div>
         )}
         {status === 'error' && (
-          <p className="text-sm text-muted">Your courses couldn&apos;t be loaded right now.</p>
+          <ErrorMessage
+            title="Your courses couldn't be loaded"
+            message="The server may be waking up. Try again in a moment."
+            onRetry={refresh}
+          />
         )}
         {status === 'ready' && courses.length === 0 && (
           <p className="rounded-2xl border border-dashed border-line p-8 text-center text-sm text-muted">

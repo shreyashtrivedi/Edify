@@ -7,7 +7,7 @@ import { getErrorMessage, sharedApi } from '../../utils/api';
 import { coursePath } from '../../utils/paths';
 
 const buttonClass =
-  'inline-flex items-center gap-2 rounded-xl bg-brand px-4 py-2 text-sm font-semibold text-on-brand shadow-sm hover:bg-brand-strong disabled:opacity-70';
+  'inline-flex items-center justify-center gap-2 rounded-xl bg-brand px-4 py-2 text-sm font-semibold text-on-brand shadow-sm hover:bg-brand-strong disabled:opacity-70 max-sm:w-full';
 
 /**
  * Top of every shared page: says it's a read-only shared course, and offers the next step:
@@ -71,7 +71,8 @@ export default function SharedBanner({ course, token }) {
   return (
     <div className="mb-8 flex flex-wrap items-center gap-x-4 gap-y-3 rounded-2xl border border-brand/25 bg-brand-soft px-5 py-4">
       <Link2 className="size-5 shrink-0 text-brand" aria-hidden="true" />
-      <div className="min-w-0 flex-1 text-sm">
+      {/* basis-60: the text keeps room; on phones the button wraps below it */}
+      <div className="min-w-0 flex-1 basis-60 text-sm">
         <p className="font-semibold">Shared course · read-only</p>
         <p className="text-muted">
           {isOwnCourse

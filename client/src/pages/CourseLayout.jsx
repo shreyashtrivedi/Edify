@@ -1,3 +1,4 @@
+import { Suspense } from 'react';
 import { Link, Outlet, useParams } from 'react-router';
 import ErrorMessage from '../components/ui/ErrorMessage';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
@@ -31,5 +32,10 @@ export default function CourseLayout() {
     );
   }
 
-  return <Outlet context={courseState} />;
+  return (
+    // The overview and lesson pages are downloaded on demand (pages/lazyPages.js)
+    <Suspense fallback={<LoadingSpinner fullPage />}>
+      <Outlet context={courseState} />
+    </Suspense>
+  );
 }
