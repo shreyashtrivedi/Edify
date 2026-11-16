@@ -7,6 +7,7 @@ import { Lesson } from '../models/Lesson.js';
 import { LessonAudio } from '../models/LessonAudio.js';
 import { Module } from '../models/Module.js';
 import { Progress } from '../models/Progress.js';
+import { TutorChat } from '../models/TutorChat.js';
 import { courseOutlineSchema } from '../schemas/course.schemas.js';
 import { ApiError } from '../utils/ApiError.js';
 import { generateJSON } from './gemini.service.js';
@@ -179,6 +180,7 @@ async function deleteCourseTree(courseId) {
     Lesson.deleteMany({ course: courseId }),
     LessonAudio.deleteMany({ course: courseId }),
     Progress.deleteMany({ course: courseId }),
+    TutorChat.deleteMany({ course: courseId }),
     Module.deleteMany({ course: courseId }),
     Course.deleteOne({ _id: courseId }),
   ]);
