@@ -14,6 +14,7 @@ import DownloadPdfButton from '../components/DownloadPdfButton';
 import LessonCompletion from '../components/LessonCompletion';
 import LessonRenderer from '../components/LessonRenderer';
 import NarrationPlayer from '../components/NarrationPlayer';
+import LessonTutor from '../components/tutor/LessonTutor';
 import ErrorMessage from '../components/ui/ErrorMessage';
 import { LessonSkeleton } from '../components/ui/Skeleton';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
@@ -72,7 +73,8 @@ export default function LessonPage() {
 
   return (
     <div className="grid gap-10 xl:grid-cols-[minmax(0,1fr)_15rem]">
-      <article className="min-w-0">
+      {/* pb-16: room for the floating "Ask a doubt" button below the lesson navigation */}
+      <article className="min-w-0 pb-16">
         <nav
           className="flex flex-wrap items-center gap-1.5 text-sm text-muted"
           aria-label="Breadcrumb"
@@ -265,10 +267,16 @@ export default function LessonPage() {
       </article>
 
       <aside className="hidden xl:block">
-        <div className="sticky top-8 max-h-[calc(100dvh-4rem)] overflow-y-auto pr-1">
+        {/* max-h leaves the bottom of the screen free for the "Ask a doubt" button */}
+        <div className="sticky top-8 max-h-[calc(100dvh-9rem)] overflow-y-auto pr-1">
           <CourseOutline course={course} />
         </div>
       </aside>
+
+      {/* key: each lesson gets its own chat (switching lessons stops a running answer) */}
+      {isReady && (
+        <LessonTutor key={lesson._id} lessonId={lesson._id} lessonTitle={outlineLesson.title} />
+      )}
     </div>
   );
 }
