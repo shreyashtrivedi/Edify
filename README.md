@@ -55,6 +55,6 @@ No Gemini key yet? Set `AI_MOCK=true` in `server/.env` to use realistic sample c
 | Command (from root) | What it does |
 |---|---|
 | `npm run dev` | runs server + client with live reload |
-| `npm test` | server test suite (vitest + in-memory MongoDB) |
+| `npm test` | server tests (vitest + in-memory MongoDB) and client tests (vitest) |
 | `npm run lint` | lints server and client |
 | `npm run build` | production build of the client |
