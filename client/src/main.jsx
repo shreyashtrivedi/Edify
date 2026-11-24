@@ -22,6 +22,11 @@ import {
   SharedLessonPage,
 } from './pages/lazyPages';
 import NotFoundPage from './pages/NotFoundPage';
+import { startServerStatus } from './utils/serverStatus';
+
+// Ping the API before React even renders: if Render has put it to sleep, it starts waking
+// up now instead of when the first real request is made.
+startServerStatus();
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
