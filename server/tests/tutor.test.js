@@ -184,7 +184,7 @@ describe('POST /api/lessons/:id/tutor', () => {
 
     expect(res.status).toBe(200); // the header was already sent
     expect(eventsOf(res).map((e) => e.type)).toEqual(['delta', 'error']);
-    expect(eventsOf(res)[1].error.code).toBe('AI_UNAVAILABLE');
+    expect(eventsOf(res)[1].error.code).toBe('AI_BUSY'); // a 503 means Gemini is overloaded
     expect(await TutorChat.countDocuments()).toBe(0);
   });
 

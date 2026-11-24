@@ -7,6 +7,9 @@
  */
 import mongoose from 'mongoose';
 import { env } from '../config/env.js';
+import { ApiError } from '../utils/ApiError.js';
+
+const GENERIC_MESSAGE = 'Something went wrong on our side. Please try again.';
 
 // 404 for any /api route that didn't match.
 export function notFound(req, _res, next) {
@@ -15,8 +18,14 @@ export function notFound(req, _res, next) {
   next(error);
 }
 
-// Express recognises an error handler by its 4 arguments, so `_next` must stay.
-export function errorHandler(err, _req, res, _next) {
+/**
+ * Turns any error into the status code and JSON body sent to the browser.
+ *
+ * An ApiError's message was written for the user ("Google's AI service is overloaded…"), so
+ * it is always shown, even for a 5xx. Any other 5xx is an unexpected crash: its message can
+ * reveal internals, so production replaces it with a generic one (the full error is logged).
+ */
+export function toErrorResponse(err, { isProduction = env.isProduction } = {}) {
   let statusCode = err.statusCode || err.status || 500;
   let message = err.message || 'Internal server error';
   let details = err.details;
@@ -39,13 +48,22 @@ export function errorHandler(err, _req, res, _next) {
     message = 'Request body is not valid JSON';
   }
 
-  if (statusCode >= 500) {
-    console.error('💥', err);
-    // Never leak internal error messages to users in production.
-    if (env.isProduction) message = 'Something went wrong on our side. Please try again.';
+  let code = err.code;
+  if (statusCode >= 500 && isProduction && !(err instanceof ApiError)) {
+    message = GENERIC_MESSAGE;
+    details = undefined;
+    code = undefined; // e.g. a database error number
   }
 
-  res.status(statusCode).json({
-    error: { message, ...(err.code && { code: err.code }), ...(details && { details }) },
-  });
+  return {
+    statusCode,
+    body: { error: { message, ...(code && { code }), ...(details && { details }) } },
+  };
+}
+
+// Express recognises an error handler by its 4 arguments, so `_next` must stay.
+export function errorHandler(err, _req, res, _next) {
+  const { statusCode, body } = toErrorResponse(err);
+  if (statusCode >= 500) console.error('💥', err);
+  res.status(statusCode).json(body);
 }
