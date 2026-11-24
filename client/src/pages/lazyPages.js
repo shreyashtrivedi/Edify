@@ -18,6 +18,7 @@ const loaders = {
   SharedCourseLayout: () => import('./SharedCourseLayout'),
   SharedCoursePage: () => import('./SharedCoursePage'),
   SharedLessonPage: () => import('./SharedLessonPage'),
+  PrivacyPage: () => import('./PrivacyPage'),
 };
 
 export const CourseLayout = lazy(loaders.CourseLayout);
@@ -26,6 +27,7 @@ export const LessonPage = lazy(loaders.LessonPage);
 export const SharedCourseLayout = lazy(loaders.SharedCourseLayout);
 export const SharedCoursePage = lazy(loaders.SharedCoursePage);
 export const SharedLessonPage = lazy(loaders.SharedLessonPage);
+export const PrivacyPage = lazy(loaders.PrivacyPage);
 
 export const preload = {
   /** From the home page, the next stop is a course. */
