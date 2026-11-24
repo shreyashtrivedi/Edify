@@ -8,7 +8,7 @@
  *  - minPresenceAhead keeps a heading from being left alone at the bottom of a page.
  */
 import { Link, Text, View } from '@react-pdf/renderer';
-import { parseInline } from '../utils/inlineFormat';
+import { parseInline, stripInline } from '../utils/inlineFormat';
 import { formatDuration } from '../utils/format';
 import { webSearchUrl, youtubeSearchUrl } from '../utils/paths';
 import { colors, styles } from './styles';
@@ -159,7 +159,7 @@ function Readings({ resources }) {
           <Text style={styles.listMarker}>•</Text>
           <Text style={styles.listText}>
             <Link src={resource.url || webSearchUrl(resource.searchQuery)} style={styles.link}>
-              {pdfText(resource.title)}
+              {pdfText(stripInline(resource.title))}
             </Link>
             <Text style={styles.muted}> ({resource.type})</Text>
           </Text>
@@ -188,12 +188,12 @@ export default function LessonSection({ lesson, kicker }) {
           {lesson.objectives.map((objective, index) => (
             <View key={index} style={styles.listItem}>
               <Text style={[styles.listMarker, { color: colors.brand }]}>•</Text>
-              <Text style={styles.listText}>{pdfText(objective)}</Text>
+              <RichText text={objective} style={styles.listText} />
             </View>
           ))}
           {lesson.keyTopics?.length > 0 && (
             <Text style={[styles.small, styles.muted, { marginTop: 6 }]}>
-              Key topics: {pdfText(lesson.keyTopics.join('  ·  '))}
+              Key topics: {pdfText(lesson.keyTopics.map(stripInline).join('  ·  '))}
             </Text>
           )}
         </View>
