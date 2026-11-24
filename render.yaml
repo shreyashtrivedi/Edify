@@ -1,0 +1,37 @@
+# Render Blueprint: how the API is hosted, kept in the repo next to the code.
+#
+# Create the service once with Render → New → Blueprint → this repo. Render reads this file,
+# asks for the values marked `sync: false`, and from then on redeploys main by itself.
+# Reference: https://render.com/docs/blueprint-spec
+services:
+  - type: web
+    name: edify-api
+    runtime: node
+    plan: free # without this, Render picks a paid plan
+    region: singapore # Render's closest region to India; the Atlas cluster is in the same region
+    rootDir: server # only changes inside server/ trigger a new deploy
+    buildCommand: npm ci --omit=dev # exact versions from package-lock.json, no test tools
+    startCommand: npm start
+    healthCheckPath: /api/health # a deploy only goes live once this answers
+    autoDeployTrigger: checksPass # deploy main only after the GitHub Actions CI checks pass
+    envVars:
+      # An open-ended "engines" range would get the newest Node; CI tests on Node 22.
+      - key: NODE_VERSION
+        value: '22'
+      - key: NODE_ENV
+        value: production
+      # Secrets and deployment-specific values: Render asks for these when the Blueprint is
+      # created, and they are never stored in the repo. (Gemini models and voice use the
+      # defaults in config/env.js.)
+      - key: MONGO_URI # Atlas connection string, database "edify"
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: YOUTUBE_API_KEY
+        sync: false
+      - key: AUTH0_DOMAIN # e.g. your-tenant.us.auth0.com
+        sync: false
+      - key: AUTH0_AUDIENCE # the API Identifier, e.g. https://edify-api
+        sync: false
+      - key: CLIENT_URL # the Vercel address of the frontend (CORS)
+        sync: false

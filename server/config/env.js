@@ -71,9 +71,22 @@ if (!parsed.success) {
   process.exit(1);
 }
 
+/**
+ * "https://edify.vercel.app/, http://localhost:5173" → ['https://edify.vercel.app', 'http://localhost:5173']
+ *
+ * Browsers send the Origin header without a trailing slash, so a URL pasted with one
+ * ("https://edify.vercel.app/") would never match and CORS would block every request.
+ */
+export function parseOrigins(value) {
+  return value
+    .split(',')
+    .map((origin) => origin.trim().replace(/\/+$/, ''))
+    .filter(Boolean);
+}
+
 export const env = {
   ...parsed.data,
   isProduction: parsed.data.NODE_ENV === 'production',
   isTest: parsed.data.NODE_ENV === 'test',
-  clientOrigins: parsed.data.CLIENT_URL.split(',').map((origin) => origin.trim()),
+  clientOrigins: parseOrigins(parsed.data.CLIENT_URL),
 };
