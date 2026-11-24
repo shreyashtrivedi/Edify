@@ -11,8 +11,18 @@ export const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:50
 
 export const api = axios.create({
   baseURL: `${API_BASE_URL}/api`,
-  timeout: 90_000, // AI generation + Render cold starts can be slow
+  timeout: 90_000, // a sleeping Render server can take up to a minute to answer
 });
+
+/**
+ * Requests that wait for Gemini (course outline, lesson, narration) get longer than the
+ * server's own worst case (a 60 s attempt plus one retry), so when Gemini is slow the
+ * server's explanation ("Google's AI service is overloaded…") arrives instead of a timeout.
+ */
+const AI_TIMEOUT = 150_000;
+
+const NETWORK_ERROR_MESSAGE =
+  "Can't reach the server. Check your internet connection and try again.";
 
 /**
  * Authentication: AuthProvider registers Auth0's getAccessTokenSilently here after login.
@@ -35,7 +45,8 @@ api.interceptors.request.use(async (config) => {
 
 /** Endpoint helpers: components never build URLs themselves. */
 export const coursesApi = {
-  generate: (body) => api.post('/courses/generate', body).then((res) => res.data.course),
+  generate: (body) =>
+    api.post('/courses/generate', body, { timeout: AI_TIMEOUT }).then((res) => res.data.course),
   list: () => api.get('/courses').then((res) => res.data.courses),
   get: (id, options) => api.get(`/courses/${id}`, options).then((res) => res.data.course),
   /** The course with every generated lesson's full content (for the course PDF). */
@@ -66,12 +77,17 @@ export const sharedApi = {
 export const lessonsApi = {
   get: (id, options) => api.get(`/lessons/${id}`, options).then((res) => res.data.lesson),
   generate: (id, { force = false } = {}, options) =>
-    api.post(`/lessons/${id}/generate`, { force }, options).then((res) => res.data.lesson),
+    api
+      .post(`/lessons/${id}/generate`, { force }, { timeout: AI_TIMEOUT, ...options })
+      .then((res) => res.data.lesson),
   /** Saves completion and/or quiz answers: { completed?, quizAnswers? }. The server grades the quiz. */
   saveProgress: (id, body) =>
     api.put(`/lessons/${id}/progress`, body).then((res) => res.data.progress),
   /** Records the Hinglish narration (once; later calls return the stored one). */
-  narrate: (id) => api.post(`/lessons/${id}/narration`).then((res) => res.data.narration),
+  narrate: (id) =>
+    api
+      .post(`/lessons/${id}/narration`, undefined, { timeout: AI_TIMEOUT })
+      .then((res) => res.data.narration),
   /** The narration MP3 as a Blob. Fetched through axios so the auth token is sent. */
   narrationAudio: (id) =>
     api.get(`/lessons/${id}/narration/audio`, { responseType: 'blob' }).then((res) => res.data),
@@ -124,7 +140,7 @@ async function askTutor(lessonId, question, { onDelta, signal } = {}) {
     });
   } catch (error) {
     if (error.name === 'AbortError') throw error;
-    throw new Error('Cannot reach the server. Is it running?');
+    throw new Error(NETWORK_ERROR_MESSAGE);
   }
 
   // Errors before the answer starts (validation, rate limit, AI down) are normal JSON errors
@@ -172,6 +188,6 @@ export function getErrorMessage(error) {
     return 'Your session has expired. Please log in again.';
   }
   if (error?.code === 'ECONNABORTED') return 'The request timed out. Please try again.';
-  if (error?.message === 'Network Error') return 'Cannot reach the server. Is it running?';
+  if (error?.message === 'Network Error') return NETWORK_ERROR_MESSAGE;
   return error?.message || 'Something went wrong.';
 }
