@@ -1,5 +1,5 @@
 import { Suspense, useRef, useState } from 'react';
-import { Outlet } from 'react-router';
+import { Link, Outlet } from 'react-router';
 import Logo from './components/Logo';
 import ServerWakingNotice from './components/ServerWakingNotice';
 import Sidebar from './components/Sidebar';
@@ -51,6 +51,20 @@ export default function App() {
           <Suspense fallback={<LoadingSpinner fullPage />}>
             <Outlet />
           </Suspense>
+
+          <footer className="mt-16 flex flex-wrap justify-center gap-x-5 gap-y-1 border-t border-line pt-6 text-xs text-muted">
+            <Link to="/privacy" className="hover:text-ink">
+              Privacy policy
+            </Link>
+            <a
+              href="https://github.com/shreyashtrivedi/Edify"
+              target="_blank"
+              rel="noreferrer"
+              className="hover:text-ink"
+            >
+              Source code
+            </a>
+          </footer>
         </main>
       </div>
     </div>

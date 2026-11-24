@@ -17,6 +17,7 @@ import {
   CourseLayout,
   CoursePage,
   LessonPage,
+  PrivacyPage,
   SharedCourseLayout,
   SharedCoursePage,
   SharedLessonPage,
@@ -61,6 +62,7 @@ createRoot(document.getElementById('root')).render(
                   />
                 </Route>
 
+                <Route path="privacy" element={<PrivacyPage />} />
                 <Route path="*" element={<NotFoundPage />} />
               </Route>
             </Routes>

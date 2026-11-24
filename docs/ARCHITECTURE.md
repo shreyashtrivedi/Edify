@@ -473,6 +473,7 @@ Error shape (all endpoints): `{ "error": { "message": "...", "code": "VALIDATION
 ├── share/:token                                    SharedCourseLayout: PUBLIC, loads the shared course once
 │   ├── (index)                                     SharedCoursePage: outline, Start reading, course PDF
 │   └── module/:moduleIndex/lesson/:lessonIndex     SharedLessonPage: read-only lesson
+├── privacy                                         PrivacyPage: PUBLIC, linked from the footer on every page
 └── *                                               NotFoundPage
 ```
 
