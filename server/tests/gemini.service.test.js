@@ -145,4 +145,20 @@ describe('generateJSON', () => {
       { statusCode: 429, code: 'AI_RATE_LIMITED' },
     );
   });
+
+  // Seen in production: 503 "This model is currently experiencing high demand" and
+  // 504 "Deadline expired before operation could complete".
+  it.each([
+    ['503 high demand', Object.assign(new Error('high demand'), { status: 503 })],
+    ['504 deadline exceeded', Object.assign(new Error('deadline expired'), { status: 504 })],
+    ['our own per-attempt timeout', Object.assign(new Error('aborted'), { name: 'AbortError' })],
+  ])('reports an overloaded AI (%s) as AI_BUSY with a message that says so', async (_case, error) => {
+    generateContent.mockImplementation(async () => {
+      throw error;
+    });
+
+    await expect(generateJSON({ prompt: 'p', systemInstruction: 's', schema })).rejects.toMatchObject(
+      { statusCode: 503, code: 'AI_BUSY', message: expect.stringMatching(/overloaded/) },
+    );
+  });
 });

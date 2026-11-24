@@ -374,9 +374,22 @@ refuses to start with `AI_MOCK=true` in production.
 6. **One retry** on invalid output, then a clean `502 AI_INVALID_RESPONSE`. Logs show the failing
    field or the finish reason (e.g. `MAX_TOKENS`).
 7. **Error mapping:** Gemini 429 → `429 AI_RATE_LIMITED`, blocked by safety filters → `422 AI_BLOCKED`,
-   missing key → `503 AI_NOT_CONFIGURED`. The SDK's default of 5 retries with up to 60 s
-   back-off is reduced to 2 attempts + 60 s timeout so users never wait minutes.
+   missing key → `503 AI_NOT_CONFIGURED`, overloaded (500/503/504 or our own timeout) →
+   `503 AI_BUSY`. The SDK's default of 5 retries with up to 60 s back-off is reduced to 2 attempts
+   (the retry waits ~2 s) with a 60 s timeout per attempt, so users never wait minutes.
 8. Token usage and latency are logged for every call (`🤖 course outline: 1234 tokens in 4100ms`).
+9. **When Google is overloaded** (found right after the first deploy): every lesson failed on the
+   live site, and Render's logs showed Gemini answering `503 This model is currently experiencing
+   high demand` and `504 Deadline expired`. A local reproduction got the same on three different
+   models, so a backup model would not have helped. Three fixes:
+   - The visitor is told the truth: *Google's AI service is overloaded right now… try again
+     shortly* (`AI_BUSY`). Before, production replaced **every** 5xx message with "Something went
+     wrong", even the ones written for users. Now only unexpected crashes get the generic message
+     (`toErrorResponse()` in `errorHandler.js`, unit-tested).
+   - A 504 is not retried: Gemini already worked until its deadline, and a second try only added
+     another minute.
+   - The browser waits 150 s for AI requests, longer than the server's worst case, so the
+     explanation always arrives instead of a client-side "request timed out".
 
 ### Prompt design (`prompts.js`)
 

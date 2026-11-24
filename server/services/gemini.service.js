@@ -26,8 +26,14 @@ export function getClient() {
   // Created lazily so the server can still boot (e.g. for health checks) without a key.
   client ??= new GoogleGenAI({
     apiKey: env.GEMINI_API_KEY,
-    // The SDK default is 5 retries with up to 60s back-off, far too long for a user waiting on a spinner.
-    httpOptions: { timeout: 60_000, retryOptions: { attempts: 2 } },
+    httpOptions: {
+      timeout: 60_000, // per attempt
+      // One retry after ~2 s for brief hiccups (the SDK default is 5 tries with up to 60 s of
+      // back-off, far too long for someone watching a spinner). 504 is left out on purpose:
+      // Gemini already worked on that request until its deadline, so an identical second try
+      // would only add another minute of waiting.
+      retryOptions: { attempts: 2, initialDelay: 2, httpStatusCodes: [408, 429, 500, 502, 503] },
+    },
   });
   return client;
 }
@@ -69,6 +75,14 @@ export function toApiError(error) {
     return ApiError.tooManyRequests(
       'The AI service is busy right now (rate limit reached). Please wait a minute and try again.',
       { code: 'AI_RATE_LIMITED' },
+    );
+  }
+  // Overloaded or too slow at Google's end: 503 "high demand", 504 "deadline exceeded", or our
+  // own per-attempt timeout. Not a bug on either side, and usually over within minutes.
+  if (status === 500 || status === 503 || status === 504 || error?.name === 'AbortError') {
+    return ApiError.serviceUnavailable(
+      "Google's AI service is overloaded right now. This usually passes within a few minutes, so please try again shortly.",
+      { code: 'AI_BUSY' },
     );
   }
   if (status === 400 || status === 401 || status === 403 || status === 404) {
