@@ -36,6 +36,8 @@ explanations, code, a video and a quiz.
 ```
 Edify/
 ├── client/                    React app (deployed to Vercel)
+│   ├── vercel.json            Vercel: page routes → index.html, caching and security headers
+│   ├── vite.config.js         build config (+ Vercel checks: required settings, link-preview address)
 │   └── src/
 │       ├── auth/              AuthProvider (Auth0 + token → axios), RequireAuth (route guard), config
 │       ├── pdf/               PDF export: LessonSection, documents (lesson + course), styles, text sanitising
@@ -49,8 +51,8 @@ Edify/
 │       │   ├── share/               SharedBanner (read-only notice + save a copy)
 │       │   ├── tutor/               LessonTutor (button + panel), TutorPanel, TutorMessage, TutorComposer
 │       │   ├── ui/                  LoadingSpinner, ErrorMessage, Skeleton
-│       │   └── PromptForm, GeneratingCourse, Sidebar, UserMenu, ServerStatus, ThemeToggle, Logo,
-│       │       NarrationPlayer, LessonCompletion, DownloadPdfButton
+│       │   └── PromptForm, GeneratingCourse, Sidebar, UserMenu, ServerStatus, ServerWakingNotice,
+│       │       ThemeToggle, Logo, NarrationPlayer, LessonCompletion, DownloadPdfButton
 │       ├── pages/             HomePage, CourseLayout, CoursePage, LessonPage, NotFoundPage,
 │       │                      SharedCourseLayout, SharedCoursePage, SharedLessonPage (share links),
 │       │                      lazyPages.js (which pages load on demand)
@@ -58,7 +60,8 @@ Edify/
 │       │                      useServerStatus, useDocumentTitle
 │       ├── context/           CoursesProvider (global course list), ThemeProvider (light / dark / system)
 │       ├── utils/             api.js (axios + endpoint helpers), paths.js (URL builders), inlineFormat.js, format.js,
-│       │                      theme.js (read / save / apply the theme), tutorFormat.js (answer text → blocks)
+│       │                      theme.js (read / save / apply the theme), tutorFormat.js (answer text → blocks),
+│       │                      serverStatus.js (is the API awake? one shared check)
 │       ├── App.jsx            layout (sidebar + <Outlet/>)
 │       └── main.jsx           providers + routes
 ├── server/                    Express API (deployed to Render)
@@ -75,6 +78,7 @@ Edify/
 │   ├── scripts/               check-gemini.js, check-youtube.js, check-tts.js (verify API keys)
 │   └── tests/                 vitest + supertest + in-memory MongoDB
 ├── docs/                      this file
+├── render.yaml                Render Blueprint: how the API is hosted (see 11. Deployment)
 └── .github/workflows/ci.yml   lint + test + build on every push/PR
 ```
 
@@ -484,7 +488,7 @@ generating, `markLessonEnriched()` updates that shared copy and the outline's ch
 | Generating an outline (~5–15 s) | `GeneratingCourse`: step list that advances while the AI works |
 | Generating a lesson (first open) | "Writing this lesson for you…" banner + skeleton |
 | Any API failure | `ErrorMessage` with the server's friendly message and a *Try again* button |
-| Backend asleep (Render free tier) | Sidebar status shows "Waking up server…" |
+| Backend asleep (Render free tier) | After 3 s, a notice at the top of every page explains the wait (`ServerWakingNotice`, see 11. Deployment); after 2 minutes of failures, "Can't reach the server" with *Try again* |
 
 ### Progress tracking
 
@@ -679,7 +683,7 @@ with a readable message, instead of failing on the first request.
 | Variable | Where | Purpose |
 |---|---|---|
 | `MONGO_URI` | server | Atlas connection string (empty in dev → in-memory MongoDB) |
-| `CLIENT_URL` | server | allowed CORS origin(s), comma-separated |
+| `CLIENT_URL` | server | allowed CORS origin(s), comma-separated (a trailing `/` is ignored: browsers never send one) |
 | `GEMINI_API_KEY`, `GEMINI_MODEL` | server | AI access; model defaults to `gemini-3.5-flash-lite` |
 | `GEMINI_TTS_MODEL`, `GEMINI_TTS_VOICE` | server | narration voice (defaults `gemini-3.8-flash-lite-tts`, `Kore`) |
 | `AI_MOCK` | server | `true` = sample content instead of Gemini (dev only, rejected in production) |
@@ -687,14 +691,16 @@ with a readable message, instead of failing on the first request.
 | `AUTH0_DOMAIN`, `AUTH0_AUDIENCE` | server | which tenant issues tokens and which API they must be for (required in production) |
 | `VITE_AUTH0_DOMAIN`, `VITE_AUTH0_CLIENT_ID`, `VITE_AUTH0_AUDIENCE` | client | Auth0 login settings (public by design: SPAs have no client secret) |
 | `VITE_API_URL` | client | backend base URL (public, baked into the bundle) |
-| `VITE_SITE_URL` | client | the site's own public address, for the link-preview image URL in `index.html` |
+| `VITE_SITE_URL` | client | the site's own public address, for the link-preview image URL in `index.html` (on Vercel, defaults to the production address) |
+| `NODE_VERSION` | Render | pins Node 22 (set in `render.yaml`) |
 
 Secrets live **only** on the server. Anything prefixed `VITE_` ends up in public JavaScript.
 
 ## 10. Quality & tooling
 
 - **Client tests (vitest):** the pure logic: tutor-answer parsing, inline formatting, durations and
-  file names, PDF text sanitising, URL builders and saving the theme choice (27 tests, run in CI).
+  file names, PDF text sanitising, URL builders, saving the theme choice, and the server wake-up check
+  (its 3 s / 5 s / 2 min timings run on fake timers, so the tests take milliseconds) (33 tests, run in CI).
 - **Server tests:** vitest + supertest against an in-memory MongoDB; the Gemini SDK is mocked, so tests
   are fast, free and deterministic. Covered: authentication (missing/forged/expired/wrong-audience
   tokens), data isolation between users, progress (server-side grading, auto-complete, invalid answers,
@@ -705,7 +711,7 @@ Secrets live **only** on the server. Anything prefixed `VITE_` ends up in public
   409 before content exists, cleanup on regenerate/delete), YouTube video selection/caching/quota errors (fake YouTube API
   via a stubbed `fetch`), validation, persistence, cascade delete, retry on
   invalid AI output, error mapping, JSON parsing, lesson caching, in-flight dedupe, block
-  normalisation, and mock data staying in sync with the schemas.
+  normalisation, mock data staying in sync with the schemas, and reading `CLIENT_URL`.
 - **Browser QA** against production builds (`vite build` + `vite preview`) with temporary pages, then deleted.
   It caught a real bug no unit test would: `useEffect(() => window.scrollTo(0, 0), …)` *returns* the
   result of `scrollTo`, and current Chrome (156) returns a **Promise** from it. React treats an effect's
@@ -713,9 +719,107 @@ Secrets live **only** on the server. Anything prefixed `VITE_` ends up in public
   The fix is a block body (`() => { window.scrollTo(0, 0); }`): an effect must return nothing or a function.
 - **Lint:** ESLint (server), oxlint (client).
 - **CI:** GitHub Actions runs lint + tests (server) and lint + tests + build (client) on every push/PR.
-- **Git workflow:** one feature branch per phase, merged into `main` with `--no-ff`.
+  The workflow's token can only read the code, and a new push to a pull request cancels its outdated run.
+- **Git workflow:** one feature branch per phase, merged into `main` with `--no-ff`. From Phase 9 on,
+  branches go through GitHub pull requests, so CI checks each one before it is merged.
 
-## 11. Roadmap
+## 11. Deployment
+
+```
+ feature branch ── pull request ──► CI (GitHub Actions) ── green ──► merge into main
+                                                                        │
+            ┌───────────────────────────────────────────────────────────┤
+            ▼                                                           ▼
+ CI runs again on main ── checks pass ──► Render                     Vercel builds client/
+                                          builds server/, waits for   and publishes it
+                                          /api/health, then swaps
+```
+
+| Part | Host | Plan | Settings in the repo |
+|---|---|---|---|
+| API (`server/`) | Render web service, Singapore | Free: sleeps after 15 idle minutes | `render.yaml` |
+| Frontend (`client/`) | Vercel | Hobby (free) | `client/vercel.json`, `client/vite.config.js` |
+| Database | MongoDB Atlas free cluster, AWS Singapore | Free (512 MB) | `MONGO_URI` (secret) |
+| Login | Auth0 | Free | allowed URLs set in the Auth0 dashboard |
+
+### The API on Render (`render.yaml`)
+
+`render.yaml` is a **Blueprint**: the hosting setup written as code, reviewed and versioned like
+everything else, instead of settings clicked together in a dashboard. Render creates the service from it
+(New → Blueprint) and keeps the service in sync with it afterwards.
+
+- **`plan: free`, `region: singapore`:** without a plan Render picks a paid one. Singapore is Render's
+  closest region to India, and the Atlas cluster is in the same region, so database calls stay short.
+- **`rootDir: server`:** Render builds only that folder, and only changes inside it trigger a deploy
+  (a README edit doesn't restart the API).
+- **`buildCommand: npm ci --omit=dev`:** `npm ci` installs the exact versions in `package-lock.json`;
+  `--omit=dev` skips the test tools (vitest, ESLint, mongodb-memory-server, which would download a
+  MongoDB binary for nothing). A rehearsal of this build: 138 packages, none of them test tools.
+- **`healthCheckPath: /api/health`:** a new version only receives traffic once this answers, so a
+  version that crashes on start never replaces the working one.
+- **`autoDeployTrigger: checksPass`:** Render deploys a commit on `main` only after its GitHub Actions
+  checks pass. A commit that breaks a test never goes live.
+- **`NODE_VERSION: 22`:** `"engines": ">=22"` would make Render pick the *newest* Node; CI tests on 22,
+  so production runs 22 too (`engines` now says `22.x` as well).
+- **Secrets** (`MONGO_URI`, `GEMINI_API_KEY`, `YOUTUBE_API_KEY`, Auth0 values, `CLIENT_URL`) are marked
+  `sync: false`: Render asks for them once, when the Blueprint is created, and they never enter the repo.
+
+The server code was already production-ready: `config/env.js` refuses to start without `MONGO_URI` and
+the Auth0 settings, and rejects `AI_MOCK`; `trust proxy` makes `req.ip` the visitor's real address behind
+Render's proxy (the rate limits count per visitor, not per proxy); logs switch to the standard `combined`
+format; and `SIGTERM` (sent by Render before replacing or sleeping the server) closes the database
+connection cleanly.
+
+### The frontend on Vercel
+
+Vercel builds `client/` with Vite (Project → Root Directory: `client`) and serves the files from its CDN.
+
+- **Page routes (`vercel.json` → `rewrites`):** only `index.html` exists on the server; React Router
+  handles `/courses/…` and `/share/…` in the browser. Without the rewrite, reloading a lesson page or
+  opening a shared link would be a 404. Real files (JS, CSS, images) are served before the rewrite applies.
+- **Caching:** files in `/assets` have the content hash in their name (`index-C7jgJetg.js`), so they
+  can be cached for a year: a new build means new names. `index.html` is re-checked on every visit,
+  so a deploy reaches everyone the next time they open the site.
+- **Security headers:** `nosniff` (the browser never guesses a file's type), `X-Frame-Options: DENY`
+  (no other site can show Edify in a frame to trick clicks), a referrer policy that sends only our
+  origin to other sites (YouTube embeds require it) and no camera, microphone or location access.
+- **Fail-fast build (`vite.config.js`):** `VITE_*` values are baked in at build time. On Vercel, a
+  missing `VITE_API_URL` or Auth0 setting stops the build with a message naming the variable, the same
+  idea as the server's env validation. Otherwise the site would deploy fine and then call `localhost`.
+- **Link previews:** if `VITE_SITE_URL` isn't set, the build uses the production address Vercel
+  provides (`VERCEL_PROJECT_PRODUCTION_URL`).
+- **Preview deployments:** Vercel also builds every branch and pull request at its own address. They
+  are for checking the interface; login and the API only accept the production address (Auth0's allowed
+  URLs and `CLIENT_URL`).
+
+### The sleeping server (`utils/serverStatus.js`)
+
+On the free plan Render stops the API after 15 minutes without requests; the next request waits
+30–60 s while it starts. The app turns that wait into an explained one:
+
+| Moment | Status | What the visitor sees |
+|---|---|---|
+| Page loads | `checking` | `main.jsx` pings `/api/health` before React renders, so the wake-up starts immediately |
+| No answer after 3 s | `waking` | A notice at the top of every page: *Waking up the server… can take up to a minute* |
+| A ping fails | `waking` | Retry every 5 s (Render can answer 502/503 while starting) |
+| The API answers | `online` | The notice disappears (any API response counts) |
+| Failing for 2 minutes | `offline` | *Can't reach the server* + *Try again* |
+| Back to the tab after 14+ idle minutes | `checking` | Checks again: the API may have gone back to sleep |
+
+It is one shared check (`useSyncExternalStore`), so every component reads the same status and the API is
+pinged once per page load. The health check skips the login token, because it's public and waiting for a
+token renewal would only delay the wake-up. Since every page goes through `App.jsx`, the notice appears
+everywhere, including share links and phones (where the sidebar status line is hidden in the closed menu).
+
+### Database: one cluster, two databases
+
+The Atlas cluster holds `edify` (production, used by Render) and `edify-dev` (local development): the
+same connection string with a different database name after `.net/`. Test courses made on a laptop never
+show up on the live site. Render's free plan has no fixed IP address, so the cluster accepts connections
+from anywhere (`0.0.0.0/0`); access still needs the database user's password, and connections are
+encrypted (TLS). The cluster has its own Atlas project, so that rule opens nothing else.
+
+## 12. Roadmap
 
 - [x] Phase 0: Monorepo scaffold, health check, CI
 - [x] Phase 1: Models + AI course-outline generation
