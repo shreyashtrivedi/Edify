@@ -1,6 +1,7 @@
 import { Suspense, useRef, useState } from 'react';
 import { Outlet } from 'react-router';
 import Logo from './components/Logo';
+import ServerWakingNotice from './components/ServerWakingNotice';
 import Sidebar from './components/Sidebar';
 import LoadingSpinner from './components/ui/LoadingSpinner';
 
@@ -45,6 +46,7 @@ export default function App() {
         </header>
 
         <main className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-8 lg:py-12">
+          <ServerWakingNotice />
           {/* Shown while an on-demand page (see pages/lazyPages.js) downloads for the first time */}
           <Suspense fallback={<LoadingSpinner fullPage />}>
             <Outlet />

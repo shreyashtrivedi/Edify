@@ -20,7 +20,7 @@ videos and quizzes.
 
 ## Run it locally
 
-Requirements: **Node.js 22+**.
+Requirements: **Node.js 22**.
 
 ```bash
 # 1. Install everything (root, server, client)
@@ -49,6 +49,23 @@ No Gemini key yet? Set `AI_MOCK=true` in `server/.env` to use realistic sample c
    Settings, enable **Allow Offline Access** (refresh tokens).
 3. In the API's **Application Access** tab, authorize the Edify application for **user access**.
 4. Copy the app's Domain + Client ID and the API Identifier into the two `.env` files.
+
+## Deploy
+
+Everything runs on free plans: the API on **Render**, the app on **Vercel**, the database on
+**MongoDB Atlas**. The reasoning behind each setting is in
+[docs/ARCHITECTURE.md → 11. Deployment](docs/ARCHITECTURE.md#11-deployment).
+
+1. **Database:** create a free Atlas cluster and a database user, and allow access from `0.0.0.0/0`
+   (Render's free plan has no fixed IP). Copy the connection string and add `edify` after `.net/`.
+2. **API:** Render → New → Blueprint → this repo. `render.yaml` sets up the service; Render asks for
+   `MONGO_URI`, `GEMINI_API_KEY`, `YOUTUBE_API_KEY`, `AUTH0_DOMAIN`, `AUTH0_AUDIENCE` and `CLIENT_URL`
+   (the Vercel address from step 3; update it once you have it).
+3. **App:** Vercel → Add New → Project → this repo, Root Directory `client`. Add `VITE_API_URL` (the
+   Render address) and the three `VITE_AUTH0_*` values. If one is missing, the build stops and names it.
+4. **Auth0:** add the Vercel address to Allowed Callback URLs, Allowed Logout URLs and Allowed Web Origins.
+
+After that, every merge into `main` deploys itself: Render once CI passes, Vercel straight away.
 
 ## Scripts
 
