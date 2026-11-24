@@ -4,8 +4,8 @@ Edify turns a free-form topic ("Intro to React Hooks") into a structured course:
 **Course → 3–6 Modules → 3–5 Lessons each**, where every lesson has objectives,
 explanations, code, a video and a quiz.
 
-> This document describes what is **built so far** and is updated after every phase.
-> The roadmap at the bottom lists what's next.
+> **Live:** [edify-gold.vercel.app](https://edify-gold.vercel.app). This document is updated after
+> every phase; the roadmap at the bottom shows how the project was built, step by step.
 
 ---
 
@@ -77,7 +77,7 @@ Edify/
 │   ├── utils/                 ApiError, audio (PCM → MP3), lessonText (a lesson as prompt text)
 │   ├── scripts/               check-gemini.js, check-youtube.js, check-tts.js (verify API keys)
 │   └── tests/                 vitest + supertest + in-memory MongoDB
-├── docs/                      this file
+├── docs/                      this file + screenshots/ (used by the README)
 ├── render.yaml                Render Blueprint: how the API is hosted (see 11. Deployment)
 └── .github/workflows/ci.yml   lint + test + build on every push/PR
 ```
@@ -847,4 +847,5 @@ encrypted (TLS). The cluster has its own Atlas project, so that rule opens nothi
 - [x] Phase 8c: "Ask a doubt" tutor (streamed answers grounded in the lesson, saved chat, Hinglish)
 - [x] Phase 8d: Share links (read-only public link, turn off/on, save a copy to your library)
 - [x] Polish: code-splitting, accessibility audit (0 violations), phone layouts, client tests, link previews
-- [ ] Phase 9: Deploy (Render + Vercel), README, demo video
+- [x] Phase 9: Deploy (Render + Vercel + Atlas, deploys gated on CI), clear errors when Gemini is
+  overloaded, final README with screenshots

@@ -1,6 +1,8 @@
 import { ArrowLeft, ArrowRight, ExternalLink, Search, Target } from 'lucide-react';
 import { Link } from 'react-router';
+import { stripInline } from '../../utils/inlineFormat';
 import { webSearchUrl } from '../../utils/paths';
+import InlineText from '../blocks/InlineText';
 
 /**
  * Parts of a lesson page shared by your own lessons (LessonPage) and shared ones
@@ -21,7 +23,11 @@ export function LessonObjectives({ objectives = [] }) {
             <span className="text-brand" aria-hidden="true">
               ✓
             </span>{' '}
-            {objective}
+            {/* The AI sometimes bolds key terms here, like in paragraphs. One wrapping span
+                keeps the formatted pieces together as a single item of the flex row. */}
+            <span>
+              <InlineText text={objective} />
+            </span>
           </li>
         ))}
       </ul>
@@ -37,7 +43,7 @@ export function LessonKeyTopics({ topics = [] }) {
       <div className="mt-3 flex flex-wrap gap-2">
         {topics.map((topic) => (
           <span key={topic} className="rounded-full bg-brand-soft px-3 py-1 text-sm text-brand">
-            {topic}
+            {stripInline(topic)}
           </span>
         ))}
       </div>
@@ -66,7 +72,7 @@ export function LessonReadings({ resources = [] }) {
               ) : (
                 <Search className="size-4 shrink-0 text-muted" aria-hidden="true" />
               )}
-              <span className="flex-1 group-hover:text-brand">{resource.title}</span>
+              <span className="flex-1 group-hover:text-brand">{stripInline(resource.title)}</span>
               <span className="text-xs text-muted capitalize">{resource.type}</span>
             </a>
           </li>
